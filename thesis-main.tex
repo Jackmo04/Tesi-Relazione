@@ -45,14 +45,41 @@ Massimo 2000 caratteri.
 %----------------------------------------------------------------------------------------
 \chapter{Introduzione}
 \label{chap:introduction}
-% TODO: scrivere verso la fine, dopo aver scritto il resto della tesi
+% Context & Problem Statement: La sicurezza della runtime nei container e i limiti dell'approccio tradizionale basato solo su analisi statiche o agenti in user-space.
+% La Svolta eBPF: Introduzione al tracciamento a livello kernel come nuovo paradigma di sicurezza Cloud-Native.
+% Obiettivi della Tesi: Definizione dell'obiettivo scientifico: confronto tra modelli reattivi (Falco) e preventivi (Tetragon), sviluppo di una suite automatizzata di benchmarking, e valutazione di integrabilità/efficacia in diversi ambienti.
 \paragraph{Struttura della tesi}
 
 \chapter{Background}
+% Fondamenti di eBPF: Meccanismi di aggancio nel kernel Linux (kprobes, uprobes, tracepoints), eBPF maps e ruolo del Verifier.
+% Falco (User-Space Detection): Architettura del demone, intercettazione delle syscall (sys_enter/sys_exit), gestione del ring buffer ed esecuzione del motore di regole YAML.
+% Cilium Tetragon (In-Kernel Enforcement): Architettura del controller, filtraggio ed enforcement in-kernel via eBPF override (SIGKILL), integrazione con BTF (BPF Type Format).
+% Modelli a Confronto: Detection & Alerting vs. Prevention & In-Kernel Kill.
 
-\chapter{Analisi}
+\chapter{Contesti d'uso e integrazione}
+% Requisiti di Sistema e dipendenze del Kernel: BTF (CONFIG_DEBUG_INFO_BTF), versioni del kernel Linux e permessi CAP_SYS_ADMIN/CAP_BPF.
+% Analisi e Prova nei 4 Contesti di Deployment: Standalone Container, Docker Swarm, Kubernetes Cluster, Ambienti Cloud Generici.
+% Valutazione sulla Facilità di Configurazione: Complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. CRD TracingPolicy di Tetragon).
 
-% \lstinputlisting[float,language=Java,label={lst:random-code}]{listings/HelloWorld.java}
+\chapter{Progettazione Suite di Test}
+% Infrastruttura di Laboratorio: Configurazione dell'ambiente di test
+% Architettura dell'Applicazione Cavia
+% Progettazione della Suite di Testing Automatizzata
+
+\chapter{Risultati e Discussione} % sezioni da definire meglio
+% Rilevazione ed Evasione (Detection & Bypass)
+% Studio dei Falsi Positivi
+% Reattività ed Enforcement (Prevention Test)
+% Meccanismi di Avviso e Automazione della Risposta
+
+\chapter{Architettura di Osservabilità} % da definire meglio
+% Integrazione con Grafana, Prometheus
+
+\chapter{Conclusione e sviluppi futuri}
+% Sintesi dei Risultati: Tabella comparativa finale su Efficacia, Robustezza, Usabilità e Prestazioni.
+% Linee Guida di Scelta: Guida per un Ingegneer/Security Architect su quando adottare Falco, Tetragon o un approccio ibrido.
+% Sviluppi Futuri
+
 
 %----------------------------------------------------------------------------------------
 % BIBLIOGRAPHY
