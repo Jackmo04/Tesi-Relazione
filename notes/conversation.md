@@ -34,3 +34,15 @@
     Insomma, confesso che mi hai fatto venir voglia di approfondire questi argomenti, se a te l'idea piace io ti farei proseguire lo studio e valutazione sia di efficacia sia di applicabilità architetturale di questi sistemi.
 
     Dimenticavo una premessa al discorso precedente: visto il grado di maturità di questi sistemi Cilium/Tetragon e Falco mi sembra difficile riuscire a realizzare qualcosa di meglio partendo da zero, quindi credo sia meglio occuparsi di studiare, approfondire e testare l'esistente.
+
+## 04/08
+### Io:
+    Attualmente ho creato un cluster Kubernetis in una VM e ho installato Falco. Ho poi creato un pod in cui gira un web server vulnerabile e sto cercando di analizzare che cosa Falco riesce a identificare e che cosa gli scappa, falsi allarmi che genera, facilità di configurazione, come avvisa l'utente, ecc. 
+
+    Dopodiché pensavo di provare a integrare i due sistemi negli altri contesti che mi aveva proposto (applicazioni docker/podman, docker swarm e generiche cloud) e vedere se è possibile, con che difficoltà e con che efficacia.
+    Insomma, una completa analisi comparativa fra i due sistemi.
+
+    Volevo però capire meglio nello specifico che cosa intende per "integrarli in un'applicazione"; cioè in che tipo di applicazione vorrebbe integrarli. Inoltre, ho visto che sia per Falco che per Tetragon esistono già delle integrazioni con Grafana/Prometheus per la dashboard.
+    
+### Ghini:
+    Sì, mi interessava capire se era già possibile integrare questi sistemi nella dashboard Grafana/Prometheus e se era possibile far partire qualche azione automatica in caso che si evidenziasse un attacco o un malfunzionamento (forse si può fare sta cosa direttamente in grafana?)
