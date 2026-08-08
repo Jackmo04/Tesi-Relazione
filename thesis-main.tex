@@ -13,10 +13,11 @@
     urlcolor=blue,
     citecolor=red
 }
+% \hypersetup{hidelinks} % PER STAMPA
 
-% PER STAMPA
-% \hypersetup{hidelinks}
-
+%----------------------------------------------------------------------------------------
+% FRONTESPIZIO
+%----------------------------------------------------------------------------------------
 \school{\unibo}
 \programme{Corso di Laurea in Ingegneria e Scienze Informatiche}
 \title{Sicurezza Kernel-Level in ambienti Cloud-Native: il caso di studio Falco e Tetragon}
@@ -29,7 +30,9 @@
 \session{II}
 \academicyear{2025-2026}
 
-% Acronimi
+%----------------------------------------------------------------------------------------
+% ACRONIMI
+%----------------------------------------------------------------------------------------
 \acsetup{case-sensitive=false}
 \DeclareAcronym{ebpf}{
     short={eBPF},
@@ -46,6 +49,7 @@
     long={Virtual Machine}
 }
 
+%----------------------------------------------------------------------------------------
 
 \mainlinespacing{1.241}
 
@@ -53,22 +57,26 @@
 
 \frontmatter\frontispiece
 
+%----------------------------------------------------------------------------------------
+
 \begin{abstract}	
 Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 \end{abstract}
 
 %----------------------------------------------------------------------------------------
+
 {\hypersetup{hidelinks}
 \tableofcontents   
 \listoffigures
+% \lstlistoflistings
 }
 
-% \lstlistoflistings
 %----------------------------------------------------------------------------------------
 
 \mainmatter
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Introduzione}
 \label{chap:introduction}
 % Context & Problem Statement: La sicurezza della runtime nei container e i limiti dell'approccio tradizionale basato solo su analisi statiche o agenti in user-space.
@@ -77,6 +85,7 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 % \paragraph{Struttura della tesi}
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Background}
 \label{chap:background}
 % Fondamenti di eBPF: Meccanismi di aggancio nel kernel Linux (kprobes, uprobes, tracepoints), eBPF maps e ruolo del Verifier.
@@ -123,6 +132,7 @@ In termini pratici, Falco è spesso più semplice da integrare in una catena di 
 % da revisionare + aggiungere riferimenti e immagine/i
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Contesti d'uso e integrazione}
 \label{chap:use-cases}
 % Requisiti di Sistema e dipendenze del Kernel: BTF (CONFIG_DEBUG_INFO_BTF), versioni del kernel Linux e permessi CAP_SYS_ADMIN/CAP_BPF.
@@ -130,6 +140,7 @@ In termini pratici, Falco è spesso più semplice da integrare in una catena di 
 % Valutazione sulla Facilità di Configurazione: Complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. CRD TracingPolicy di Tetragon).
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Progettazione Suite di Test}
 \label{chap:testing}
 % Infrastruttura di Laboratorio: Configurazione dell'ambiente di test
@@ -137,6 +148,7 @@ In termini pratici, Falco è spesso più semplice da integrare in una catena di 
 % Progettazione della Suite di Testing Automatizzata
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Risultati e Discussione} % sezioni da definire meglio
 \label{chap:results}
 % Rilevazione ed Evasione (Detection & Bypass)
@@ -145,11 +157,13 @@ In termini pratici, Falco è spesso più semplice da integrare in una catena di 
 % Meccanismi di Avviso e Automazione della Risposta
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Osservabilità: Integrazione con Grafana, Prometheus}
 \label{chap:observability}
 % Integrazione con Grafana, Prometheus
 
 %----------------------------------------------------------------------------------------
+
 \chapter{Conclusione e sviluppi futuri}
 \label{chap:conclusion}
 % Sintesi dei Risultati: Tabella comparativa finale su Efficacia, Robustezza, Usabilità e Prestazioni.
@@ -163,13 +177,13 @@ In termini pratici, Falco è spesso più semplice da integrare in una catena di 
 
 \backmatter
 
-\nocite{*} % Remove this as soon as you have the first citation
+% \nocite{*} % Remove this as soon as you have the first citation
 
 \bibliographystyle{plain}
 \bibliography{bibliography}
 
-\begin{acknowledgements} % this is optional
-Optional. Max 1 page.
+\begin{acknowledgements}
+Opzionale: ringraziamenti a supervisori, colleghi, amici e famiglia.
 \end{acknowledgements}
 
 \end{document}
