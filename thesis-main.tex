@@ -88,11 +88,15 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 
 \chapter{Background}
 \label{chap:background}
+% Sicurezza Cloud-Native: Limitazioni degli agenti user-space, complessità di gestione e tuning delle regole, necessità di visibilità fine-grained.
 % Fondamenti di eBPF: Meccanismi di aggancio nel kernel Linux (kprobes, uprobes, tracepoints), eBPF maps e ruolo del Verifier.
-% Falco (User-Space Detection): Architettura del demone, intercettazione delle syscall (sys_enter/sys_exit), gestione del ring buffer ed esecuzione del motore di regole YAML.
-% Cilium Tetragon (In-Kernel Enforcement): Architettura del controller, filtraggio ed enforcement in-kernel via eBPF override (SIGKILL), integrazione con BTF (BPF Type Format).
-% Modelli a Confronto: Detection & Alerting vs. Prevention & In-Kernel Kill.
-Questo capitolo fornisce il contesto tecnico necessario per comprendere le soluzioni di sicurezza basate su \acs{ebpf} e i loro modelli operativi. Viene presentata una panoramica dei fondamenti di \ac{ebpf} (\Cref{sec:eBPF-fundamentals}), seguita da una descrizione dettagliata delle architetture di Falco e Tetragon (\Cref{sec:falco}, \Cref{sec:tetragon}), evidenziando le differenze tra i modelli di rilevamento reattivo e prevenzione in-kernel.
+
+% Questo capitolo fornisce il contesto tecnico necessario per comprendere le soluzioni di sicurezza basate su \acs{ebpf} e i loro modelli operativi. Viene presentata una panoramica dei fondamenti di \ac{ebpf} (\Cref{sec:eBPF-fundamentals}), seguita da una descrizione dettagliata delle architetture di Falco e Tetragon (\Cref{sec:falco}, \Cref{sec:tetragon}), evidenziando le differenze tra i modelli di rilevamento reattivo e prevenzione in-kernel. % TODO DA CAMBIARE
+
+\section{Sicurezza Cloud-Native}
+\label{sec:cloud-native-security}
+% TODO
+
 \section{Fondamenti di eBPF}
 \label{sec:eBPF-fundamentals}
 \ac{ebpf} (\acl{ebpf}) è un'estensione del meccanismo \ac{bpf} che consente l'esecuzione di programmi sandboxed all'interno del kernel Linux. Questi programmi possono essere utilizzati per monitorare e, in alcuni casi, influenzare il comportamento del sistema operativo in tempo reale, senza modificare il codice del kernel né caricare moduli proprietari \cite{ebpf-docs,linux-bpf-docs}.
@@ -102,6 +106,14 @@ Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risp
 Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT permette di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi consente di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs,linux-bpf-docs}.
 
 In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilità e controllo perché riduce il numero di copie dei dati e concentra la logica di raccolta vicino alla sorgente dell'evento. Questo non elimina la complessità operativa, ma sposta il problema dalla lettura passiva dei log alla progettazione di regole e filtri che siano abbastanza espressivi da distinguere attività legittime da comportamenti sospetti.
+
+% da revisionare + aggiungere riferimenti e immagine/i
+
+%----------------------------------------------------------------------------------------
+
+\chapter{Falco e Tetragon}
+\label{chap:falco-tetragon}
+% Descrizione di Falco e Tetragon: generale e architetturale, con diagrammi di flusso dei percorsi di evento e policy.
 
 \section{Falco}
 \label{sec:falco}
@@ -123,13 +135,7 @@ Questo approccio sfrutta il fatto che l'elaborazione avviene direttamente nel ke
 
 La disponibilità di metadati del kernel, incluso il supporto a informazioni di tipo come BTF, rende inoltre più robusto l'aggancio alle strutture interne e facilita l'adattamento a kernel diversi, purché l'ambiente soddisfi i requisiti richiesti dal sottosistema BPF \cite{linux-btf-docs,linux-bpf-docs}.
 
-\section{Confronto tra i modelli}
-\label{sec:background-comparison}
-Falco e Tetragon risolvono problemi simili con filosofie diverse. Falco privilegia la detection: osserva, correla e segnala. Tetragon privilegia la prevention: osserva, filtra e, quando previsto dalla policy, blocca direttamente il comportamento sospetto. Questa differenza è rilevante perché sposta il baricentro della progettazione dal solo contenuto dell'alert alla latenza dell'azione di risposta.
-
-In termini pratici, Falco è spesso più semplice da integrare in una catena di monitoraggio già esistente, mentre Tetragon richiede una maggiore attenzione alla definizione delle policy e ai prerequisiti del kernel, ma offre un controllo più stretto sul flusso degli eventi. Per questa tesi, i due strumenti vengono quindi considerati come estremi utili di uno spettro comune: da un lato la visibilità reattiva, dall'altro l'enforcement in-kernel.
-
-% da revisionare + aggiungere riferimenti e immagine/i
+% TODO: DA COMPLETARE E REVISIONARE
 
 %----------------------------------------------------------------------------------------
 
