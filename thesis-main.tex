@@ -91,7 +91,7 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 % Sicurezza Cloud-Native: Limitazioni degli agenti user-space, complessità di gestione e tuning delle regole, necessità di visibilità fine-grained.
 % Fondamenti di eBPF: Meccanismi di aggancio nel kernel Linux (kprobes, uprobes, tracepoints), eBPF maps e ruolo del Verifier.
 
-% Questo capitolo fornisce il contesto tecnico necessario per comprendere le soluzioni di sicurezza basate su \acs{ebpf} e i loro modelli operativi. Viene presentata una panoramica dei fondamenti di \ac{ebpf} (\Cref{sec:eBPF-fundamentals}), seguita da una descrizione dettagliata delle architetture di Falco e Tetragon (\Cref{sec:falco}, \Cref{sec:tetragon}), evidenziando le differenze tra i modelli di rilevamento reattivo e prevenzione in-kernel. % TODO DA CAMBIARE
+Questo capitolo fornisce il contesto teorico necessario per comprendere le motivazioni alla base della scelta di strumenti come Falco e Tetragon per la sicurezza in ambienti cloud-native. Verranno discussi i concetti chiave relativi alla sicurezza dei container e al ruolo di eBPF come tecnologia abilitante per l'osservabilità e il controllo a livello kernel.
 
 \section{Sicurezza Cloud-Native}
 \label{sec:cloud-native-security}
@@ -99,7 +99,7 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 
 \section{Fondamenti di eBPF}
 \label{sec:eBPF-fundamentals}
-\ac{ebpf} (\acl{ebpf}) è un'estensione del meccanismo \ac{bpf} che consente l'esecuzione di programmi sandboxed all'interno del kernel Linux. Questi programmi possono essere utilizzati per monitorare e, in alcuni casi, influenzare il comportamento del sistema operativo in tempo reale, senza modificare il codice del kernel né caricare moduli proprietari \cite{ebpf-docs,linux-bpf-docs}.
+\ac{ebpf} è un'estensione del meccanismo \ac{bpf} che consente l'esecuzione di programmi sandboxed all'interno del kernel Linux. Questi programmi possono essere utilizzati per monitorare e, in alcuni casi, influenzare il comportamento del sistema operativo in tempo reale, senza modificare il codice del kernel né caricare moduli proprietari \cite{ebpf-docs,linux-bpf-docs}.
 
 Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risposta a specifici hook del kernel, come kprobe, uprobe, tracepoint, socket filter e programmi di rete. Quando viene attivato, il programma può leggere o scrivere dati in apposite strutture chiamate mappe, scambiare informazioni con user space e, in alcuni casi, modificare il flusso di esecuzione di un evento. La sicurezza è garantita dal verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse \cite{ebpf-docs,linux-bpf-docs}.
 
@@ -166,6 +166,7 @@ La disponibilità di metadati del kernel, incluso il supporto a informazioni di 
 
 \chapter{Osservabilità: Integrazione con Grafana, Prometheus}
 \label{chap:observability}
+% SOLO SE AVANZA TEMPO
 % Integrazione con Grafana, Prometheus
 
 %----------------------------------------------------------------------------------------
