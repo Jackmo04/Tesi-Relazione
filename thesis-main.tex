@@ -67,8 +67,7 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 
 {\hypersetup{hidelinks}
 \tableofcontents   
-\listoffigures
-% \lstlistoflistings
+% \listoffigures
 }
 
 %----------------------------------------------------------------------------------------
@@ -95,7 +94,25 @@ Questo capitolo fornisce il contesto teorico necessario per comprendere le motiv
 
 \section{Sicurezza Cloud-Native}
 \label{sec:cloud-native-security}
-% TODO
+% TODO: aggiungere breve definizione di cloud-native
+% TODO: controllare riferimenti
+La sicurezza in ambienti cloud-native presenta sfide specifiche dovute all'adozione diffusa di container, orchestratori e pipeline di deployment che introducono dinamismo, multitenancy e complessità nella superficie d'attacco. Rispetto ai modelli tradizionali basati su macchine virtuali monolitiche, i workload cloud-native tendono a essere più effimeri, frammentati in più servizi e soggetti a frequenti aggiornamenti: queste caratteristiche rendono inefficace una difesa statica basata esclusivamente su immagini "trusted" o su scansioni periodiche. % da rivedere
+
+Un problema centrale è la perdita di visibilità tra il livello applicativo e il livello di sistema: i container condividono lo stesso kernel dell'host e molte attività malevole (ad esempio, escalation di privilegio, manipolazione dei filesystem montati o esfiltrazione di dati) si manifestano attraverso syscall e comportamenti runtime che non sono immediatamente evidenti osservando solo i file binari o i log applicativi \cite{kubernetes-docs,docker-docs}.
+
+Per questo motivo, le strategie di difesa moderne nel paradigma cloud-native si articolano su tre pilastri complementari:
+\begin{itemize}
+    \item \textbf{Riduzione della superficie d'attacco:} uso del principio del privilegio minimo, immutabilità delle immagini, meccanismi di namespace e cgroups per isolare risorse.
+    \item \textbf{Pre-deployment security:} scansione delle immagini, policy di admission nel cluster e verifica di conformità durante la pipeline CI/CD.
+    \item \textbf{Runtime security e osservabilità:} monitoraggio continuo del comportamento dei processi e delle risorse, correlazione di eventi e capacità di risposta automatica o manuale.
+\end{itemize}
+In particolare, l'osservabilità a livello runtime richiede strumenti in grado di collegare eventi di alto livello (ad es. richieste di rete, creazione di processi, accesso a file sensibili) con le entità del cluster (pod, container, namespace, service account). Le soluzioni user-space tradizionali possono fornire ricche informazioni contestuali, ma soffrono del fatto che molte operazioni critiche avvengono nel kernel: il passaggio ripetuto di dati tra kernel e user-space può introdurre overhead e latenza, limitando la granularità e la tempestività della rilevazione \cite{ebpf-docs}.
+
+L'avvento di tecniche basate su eBPF ha cambiato lo scenario: eBPF consente di eseguire piccoli programmi sandboxati direttamente nel kernel per osservare eventi, filtrare e aggregare dati, e comunicare informazioni a user-space in modo efficiente \cite{linux-bpf-docs,linux-btf-docs}. Questo approccio riduce le copie dei dati e la latenza, permettendo sia una migliore visibilità sia la possibilità, in alcuni sistemi, di intervenire in-linea per bloccare o mitigare azioni pericolose.
+
+Dal punto di vista operativo, una strategia completa di sicurezza cloud-native dovrebbe combinare controlli preventivi (policy di image scanning, admission control e least-privilege) con strumenti di detection e response runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. Strumenti come Falco e Tetragon rappresentano due approcci complementari a questa sfida: Falco si focalizza sul rilevamento e l'integrazione con workflow di alerting e risposta, mentre Tetragon sfrutta la potenza di eBPF per fornire osservabilità profonda e potenziali azioni di enforcement a livello kernel \cite{falco-docs,tetragon-home}.
+
+% Infine, va sottolineato che l'efficacia delle soluzioni runtime dipende fortemente dal contesto operativo: regole troppo permissive generano rumore e falsi positivi, regole troppo restrittive possono interrompere workload legittimi. Pertanto la sicurezza cloud-native è tanto una questione tecnologica quanto organizzativa: richiede processi di tuning, pipeline di test per le policy e integrazione con le pratiche DevOps per ridurre il rischio operativo e mantenere la resilienza del sistema.
 
 \section{Fondamenti di eBPF}
 \label{sec:eBPF-fundamentals}
