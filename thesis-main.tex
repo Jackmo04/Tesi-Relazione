@@ -9,8 +9,8 @@
 
 \hypersetup{
     colorlinks=true,
-    linkcolor=cyan,
     urlcolor=blue,
+    linkcolor=cyan,
     citecolor=red
 }
 % \hypersetup{hidelinks} % PER STAMPA
@@ -113,13 +113,20 @@ Dal punto di vista operativo, una strategia completa di sicurezza cloud-native d
 \label{sec:eBPF-fundamentals}
 \ac{ebpf} è un'estensione del meccanismo \ac{bpf} che consente l'esecuzione di programmi sandboxed all'interno del kernel Linux. Questi programmi possono essere utilizzati per monitorare e, in alcuni casi, influenzare il comportamento del sistema operativo in tempo reale, senza dover modificare il codice del kernel o caricare moduli proprietari \cite{ebpf-docs}.
 
-Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risposta a specifici hook del kernel, come kprobe, uprobe, tracepoint, socket filter e programmi di rete. Quando viene attivato, il programma può leggere o scrivere dati in apposite strutture chiamate mappe, scambiare informazioni con user space e, in alcuni casi, modificare il flusso di esecuzione di un evento. La sicurezza è garantita dal verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse \cite{ebpf-docs}.
+Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risposta a specifici hook del kernel, come kprobe, uprobe, tracepoint, socket filter e programmi di rete. Quando viene attivato, il programma può leggere o scrivere dati in apposite strutture chiamate mappe, scambiare informazioni con user space e, in alcuni casi, modificare il flusso di esecuzione di un evento. Le mappe rappresentano uno degli elementi chiave dell'architettura di eBPF: consentono di memorizzare stato, aggregare metriche e condividere informazioni tra il programma kernel e un agente user-space senza dover ricostruire ogni volta il contesto dell'evento \cite{ebpf-docs}.
 
-Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT consente di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi permette di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs}.
+La sicurezza del sistema è garantita dal Verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse \cite{ebpf-docs}. Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT consente di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi permette di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs}.
+
+L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture}, che mostra in modo sintetico il percorso di un programma eBPF: il codice sorgente viene compilato in bytecode, poi caricato nel kernel assieme alle mappe, verificato dal Verifier e compilato in codice macchina dal JIT Compiler. A questo punto, il programma può reagire agli eventi del kernel, aggiornare le mappe e comunicare con user-space. % TODO: da ricontrollare
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\linewidth]{figures/ebpf_architecture.pdf}
+    \caption{Architettura di eBPF. (Fonte immagine: \cite{ebpf-docs})}
+    \label{fig:ebpf-architecture}
+\end{figure}
 
 In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilità e controllo perché riduce il numero di copie dei dati e concentra la logica di raccolta vicino alla sorgente dell'evento. Questo non elimina la complessità operativa, ma sposta il problema dalla lettura passiva dei log alla progettazione di regole e filtri sufficientemente espressivi da distinguere attività legittime da comportamenti sospetti.
-
-% da revisionare + aggiungere riferimenti e immagine/i
 
 %----------------------------------------------------------------------------------------
 
