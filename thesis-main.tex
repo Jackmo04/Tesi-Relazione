@@ -65,9 +65,12 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 
 %----------------------------------------------------------------------------------------
 
-{\hypersetup{hidelinks}
+{
+\hypersetup{
+    linkcolor=black
+}
 \tableofcontents   
-% \listoffigures
+\listoffigures
 }
 
 %----------------------------------------------------------------------------------------
@@ -132,32 +135,43 @@ In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilit
 
 \chapter{Falco e Tetragon}
 \label{chap:falco-tetragon}
-% Descrizione di Falco e Tetragon: generale e architetturale, con diagrammi di flusso dei percorsi di evento e policy.
-In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci diversi per la rilevazione e la mitigazione di comportamenti anomali o malevoli.
 
-Verrà fornita una panoramica architetturale di ciascuno strumento, evidenziando le differenze chiave tra un modello reattivo basato su regole (Falco) e un modello più integrato di enforcement a livello kernel (Tetragon). L'obiettivo è comprendere il funzionamento interno di ciascuna piattaforma, evidenziandone i punti di forza e le limitazioni operative, in modo da poter valutare la loro efficacia in scenari di sicurezza cloud-native.
+In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci differenti per la rilevazione e la mitigazione di comportamenti sospetti o malevoli. La differenza fondamentale risiede nella posizione in cui viene valutata la policy: Falco tende a concentrarsi sul rilevamento e sulla generazione di alert in user-space, mentre Tetragon cerca di applicare la policy il più vicino possibile al punto di origine dell'evento, all'interno del kernel.
+
+Questa distinzione non è soltanto concettuale, ma incide direttamente sul modello operativo, sulla latenza di risposta e sulla capacità di prevenire un'azione prima che produca effetti rilevanti. In sintesi, Falco è un sistema di detections e alerting con elevata flessibilità di integrazione, mentre Tetragon è un sistema di osservabilità e enforcement kernel-first, pensato per scenari in cui la policy deve essere applicata in tempo reale con una finestra di rischio ridotta.
 
 \section{Falco}
 \label{sec:falco}
-Falco è una piattaforma di runtime security orientata al rilevamento. Il suo obiettivo principale è osservare il comportamento del sistema, correlare gli eventi con una regole engine e generare alert quando viene riconosciuto un pattern anomalo o potenzialmente malevolo \cite{falco-docs}.
 
-Nell'architettura corrente Falco monitora soprattutto le syscall e, più in generale, sorgenti di eventi che possono essere estese tramite plugin. Questo approccio gli consente di raccogliere contesto sia dal kernel sia da metadati provenienti da container runtime e Kubernetes, mantenendo una separazione netta tra acquisizione dell'evento e valutazione della regola. Le regole sono espresse in YAML e vengono valutate dal demone user-space, che si occupa anche della formattazione e dell'inoltro degli alert verso stdout, syslog, webhook o altri sistemi di downstream \cite{falco-docs}.
+\subsection{Descrizione generale}
+Falco è una piattaforma di runtime security orientata principalmente al rilevamento. Il suo obiettivo è osservare i comportamenti del sistema, correlare gli eventi con regole espresse in YAML e generare alert quando viene riconosciuto un pattern anomalo o potenzialmente dannoso. La filosofia di Falco è quella di fornire una visibilità ampia e facilmente integrabile con i sistemi di sicurezza e di incident response già esistenti: alert su stdout, syslog, webhook, file, sistemi SIEM o orchestratori di risposta automatica. \cite{falco-docs}
 
-Il vantaggio di questo modello è la flessibilità: una volta che l'evento è stato raccolto, la logica di rilevamento può essere modificata senza toccare il kernel. Di contro, il controllo è reattivo, cioè interviene dopo che l'evento è già avvenuto; per questo Falco è particolarmente utile per detection, audit e incident response, ma non per bloccare direttamente l'esecuzione di un'azione nel punto in cui avviene \cite{falco-docs}.
+Dal punto di vista operazionale, Falco è particolarmente adatto a scenari in cui è necessario monitorare processi, syscall, creazione di file e accessi sensibili in ambienti dinamici come Kubernetes. La sua forza risiede nella capacità di trasformare eventi di basso livello in segnali di sicurezza di alto livello, mantenendo una regola di correlazione che separa la raccolta dei dati dalla logica di rilevamento. In questo senso, Falco è fortemente orientato al detection e alla risposta umana o automatizzata, più che all'enforcement diretto a livello kernel.
 
-Dal punto di vista operativo, Falco tende a essere adottato quando serve una visibilità ampia e un'integrazione semplice con flussi di alerting esistenti. La sua efficacia dipende però dalla qualità del tuning delle regole e dalla capacità di ridurre il rumore prodotto da workload eterogenei, soprattutto in ambienti con elevata dinamicità come Kubernetes.
+\subsection{Architettura interna}
+L'architettura di Falco è organizzata in una pipeline di raccolta, normalizzazione e valutazione delle policy. A livello di input, il sistema acquisisce eventi provenienti da sorgenti diverse: syscall del kernel, eventi di container runtime, metadati di orchestrazione e, in alcune configurazioni, dati provenienti da plugin esterni. La raccolta avviene mediante un componente di acquisizione che permette di esporre un flusso uniforme di eventi, indipendentemente dalla loro origine concreta. In pratica, il kernel continua a essere la fonte primaria del segnale, ma Falco arricchisce l'evento con contesto applicativo e di orchestrazione. \cite{falco-docs-event-src,falco-docs-supported-events,falco-about}
+
+L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone user-space, dove la regole engine verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e includono campi come tipo di syscall, nome del processo, path del file, namespace, container, username e altri attributi di contesto. Quando una regola viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. La scelta di effettuare la valutazione in user-space è funzionale alla flessibilità del sistema: il codice di rilevamento può essere aggiornato e modificato senza dover ricaricare o adattare il kernel dell'host. \cite{falco-docs-event-src,falco-docs-rules}
+
+Questa progettazione presenta vantaggi chiari in termini di semplicità operativa e compatibilità, ma implica anche una logica prettamente reattiva. L'evento viene catturato e valutato dopo che la syscall o l'azione critica è già stata eseguita; quindi Falco è ideale per analisi forense, monitoraggio continuo, alerting e automazione, ma non per bloccare l'azione nel punto esatto in cui si verifica. La sua architettura è quindi particolarmente efficace in scenari in cui il requisito principale è la visibilità ambientale e la capacità di trasformare i segnali di sistema in azioni di risposta organizzate.
 
 \section{Tetragon}
 \label{sec:tetragon}
-Tetragon è un progetto di Cilium pensato per security observability e runtime enforcement a livello di kernel. A differenza di un approccio puramente reattivo, Tetragon cerca di combinare raccolta eventi, filtraggio e applicazione della policy all'interno del percorso di esecuzione dell'evento, così da ridurre la finestra temporale tra osservazione e mitigazione \cite{tetragon-home}.
 
-Il modello concettuale ruota attorno alle tracing policy: il sistema osserva processi, syscall, file e traffico di rete, correlandoli con l'identità del workload e con il contesto Kubernetes. Quando una policy viene violata, Tetragon può notificare l'evento ma anche applicare un'azione di enforcement immediata, per esempio interrompendo l'esecuzione del processo o bloccando un'operazione prima che produca effetti rilevanti \cite{tetragon-home}.
+\subsection{Descrizione generale}
+Tetragon è un progetto di Cilium dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare \cite{tetragon-home}. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
 
-Questo approccio sfrutta il fatto che l'elaborazione avviene direttamente nel kernel tramite \ac{ebpf}, riducendo l'overhead introdotto dal passaggio continuo in user space. In pratica Tetragon è più vicino a un motore di prevenzione che a un semplice sistema di monitoraggio: il suo valore aggiunto emerge soprattutto quando la policy deve essere applicata in modo coerente e con latenza minima, ad esempio per impedire l'esecuzione di binari non consentiti o rilevare tentativi di esfiltrazione di dati \cite{tetragon-home}.
+In un ambiente cloud-native, dove i workload sono effimeri, distribuiti e spesso condividono lo stesso kernel dell'host, l'enforcement a basso livello è molto rilevante. Tetragon osserva processi, syscall, file, rete e contesto di esecuzione del workload, correlandoli con le informazioni Kubernetes e con l'identità del pod. Quando una policy viene violata, il sistema non si limita a produrre un avviso: può generare un'azione di mitigazione immediata, ad esempio interrompendo un processo o bloccando un'operazione prima che compia un effetto significativo.
 
-La disponibilità di metadati del kernel, incluso il supporto a informazioni di tipo come BTF, rende inoltre più robusto l'aggancio alle strutture interne e facilita l'adattamento a kernel diversi, purché l'ambiente soddisfi i requisiti richiesti dal sottosistema BPF \cite{linux-btf-docs,linux-bpf-docs}.
+\subsection{Architettura interna}
+L'architettura di Tetragon è progettata per essere kernel-first. L'agente viene eseguito su ciascun nodo e carica programmi eBPF in risposta a hook del kernel, come kprobe, tracepoint e altri punti di osservazione del sistema. Questi programmi vengono verificati dal kernel e compilati in codice macchina JIT, in modo da consentire un monitoraggio efficiente con costo ridotto di trasferimento dei dati verso user-space. L'idea è che la decisione di raccolta e filtraggio avvenga il più vicino possibile alla sorgente dell'evento, senza far transitare tutti i dati attraverso un layer applicativo intermedio.
 
-% TODO: DA COMPLETARE E REVISIONARE
+L'event path di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting.
+
+Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF (BPF Type Format). BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload.
+
+% In conclusione, mentre Falco mette al centro la flessibilità della regola e la capacità di integrazione con sistemi di sicurezza esterni, Tetragon mette al centro l'efficienza dell'osservazione e la capacità di enforcement in tempo reale. La scelta tra i due strumenti non dipende quindi solo dalla natura delle policy, ma anche dal livello di prevenzione richiesto: Falco è ideale per rilevamento, audit e risposta, Tetragon per osservabilità approfondita e mitigazione immediata delle azioni sospette. % TODO: forse rimuovere paragrafo
+
 
 %----------------------------------------------------------------------------------------
 
@@ -205,8 +219,6 @@ La disponibilità di metadati del kernel, incluso il supporto a informazioni di 
 %----------------------------------------------------------------------------------------
 
 \backmatter
-
-% \nocite{*} % Remove this as soon as you have the first citation
 
 \bibliographystyle{plain}
 \bibliography{bibliography}
