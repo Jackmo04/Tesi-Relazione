@@ -133,6 +133,9 @@ In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilit
 \chapter{Falco e Tetragon}
 \label{chap:falco-tetragon}
 % Descrizione di Falco e Tetragon: generale e architetturale, con diagrammi di flusso dei percorsi di evento e policy.
+In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci diversi per la rilevazione e la mitigazione di comportamenti anomali o malevoli.
+
+Verrà fornita una panoramica architetturale di ciascuno strumento, evidenziando le differenze chiave tra un modello reattivo basato su regole (Falco) e un modello più integrato di enforcement a livello kernel (Tetragon). L'obiettivo è comprendere il funzionamento interno di ciascuna piattaforma, evidenziandone i punti di forza e le limitazioni operative, in modo da poter valutare la loro efficacia in scenari di sicurezza cloud-native.
 
 \section{Falco}
 \label{sec:falco}
