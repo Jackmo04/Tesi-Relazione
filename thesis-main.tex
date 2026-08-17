@@ -124,7 +124,7 @@ L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture},
 
 \begin{figure}
     \centering
-    \includegraphics[width=.9\linewidth]{figures/ebpf_architecture.pdf}
+    \includegraphics[width=\linewidth]{figures/ebpf_architecture.pdf}
     \caption{Architettura di eBPF. (Fonte immagine: \cite{ebpf-docs})}
     \label{fig:ebpf-architecture}
 \end{figure}
@@ -154,6 +154,13 @@ L'architettura di Falco è organizzata in una pipeline di raccolta, normalizzazi
 L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone user-space, dove la regole engine verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e includono campi come tipo di syscall, nome del processo, path del file, namespace, container, username e altri attributi di contesto. Quando una regola viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. La scelta di effettuare la valutazione in user-space è funzionale alla flessibilità del sistema: il codice di rilevamento può essere aggiornato e modificato senza dover ricaricare o adattare il kernel dell'host. \cite{falco-docs-event-src,falco-docs-rules}
 
 Questa progettazione presenta vantaggi chiari in termini di semplicità operativa e compatibilità, ma implica anche una logica prettamente reattiva. L'evento viene catturato e valutato dopo che la syscall o l'azione critica è già stata eseguita; quindi Falco è ideale per analisi forense, monitoraggio continuo, alerting e automazione, ma non per bloccare l'azione nel punto esatto in cui si verifica. La sua architettura è quindi particolarmente efficace in scenari in cui il requisito principale è la visibilità ambientale e la capacità di trasformare i segnali di sistema in azioni di risposta organizzate.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/falco_arch_ext.pdf}
+    \caption{Architettura semplificata di Falco. (Fonte immagine: \cite{falco-ext-ouputs})}
+    \label{fig:falco-architecture}
+\end{figure}
 
 \section{Tetragon}
 \label{sec:tetragon}
