@@ -1,4 +1,39 @@
-* text=auto eol=lf
-*.[cC][mM][dD] text eol=crlf
-*.[bB][aA][tT] text eol=crlf
-*.[pP][sS]1 text eol=crlf
+# Common settings that generally should always be used with your language specific settings
+
+# Auto detect text files and perform LF normalization
+*          text=auto
+
+#
+# The above will handle all files NOT found below
+#
+
+# Documents
+*.bibtex   text diff=bibtex
+*.tex      text diff=tex
+*.sty      text diff=tex
+*.pdf      diff=astextplain
+*.docx     diff=astextplain
+*.md       text diff=markdown
+*.txt      text
+
+# Graphics
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.svg      text
+
+# Scripts
+*.bash     text eol=lf
+*.sh       text eol=lf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.ps1      text eol=crlf
+
+#
+# Exclude files from exporting
+#
+
+.gitattributes export-ignore
+.gitignore     export-ignore
+.gitkeep       export-ignore
