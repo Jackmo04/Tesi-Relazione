@@ -59,8 +59,8 @@
 
 %----------------------------------------------------------------------------------------
 
-\begin{abstract}	
-Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
+\begin{abstract}
+(Massimo 2000 caratteri, scrivere verso la fine dei lavori) % TODO: Scrivere verso la fine.
 \end{abstract}
 
 %----------------------------------------------------------------------------------------
@@ -85,6 +85,7 @@ Massimo 2000 caratteri. % TODO: Scrivere verso la fine.
 % La Svolta eBPF: Introduzione al tracciamento a livello kernel come nuovo paradigma di sicurezza Cloud-Native.
 % Obiettivi della Tesi: Definizione dell'obiettivo scientifico: confronto tra modelli reattivi (Falco) e preventivi (Tetragon), sviluppo di una suite automatizzata di benchmarking, e valutazione di integrabilità/efficacia in diversi ambienti.
 % \paragraph{Struttura della tesi}
+(Scrivere verso la fine dei lavori) % TODO: Scrivere verso la fine.
 
 %----------------------------------------------------------------------------------------
 
@@ -108,17 +109,18 @@ Un problema centrale è la perdita di visibilità tra il livello applicativo e i
 
 In particolare, l'osservabilità a livello runtime richiede strumenti in grado di collegare eventi di alto livello, come richieste di rete, creazione di processi o accesso a file sensibili, con le entità del cluster, come pod, container, namespace e service account. Le soluzioni tradizionali in user-space possono fornire contesto utile, ma soffrono del fatto che molte operazioni critiche avvengono direttamente nel kernel.
 
+% forse rimuovere/spostare questo paragrafo
 L'uso di eBPF ha reso possibile un nuovo modello di sicurezza runtime per i sistemi cloud-native: grazie alla sua collocazione nel kernel, è possibile osservare eventi di sistema con maggiore granularità e ridurre il costo di trasferimento dei dati verso user-space. Questo sposta il problema da una semplice raccolta di log a una capacità più fine di correlare comportamenti e applicare controlli in tempo reale.
 
-Dal punto di vista operativo, una strategia completa di sicurezza cloud-native deve combinare controlli preventivi, come image scanning, admission control e least-privilege, con strumenti di detection e response runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. Strumenti come Falco e Tetragon rappresentano due approcci complementari a questa sfida: Falco è orientato principalmente al rilevamento e all'integrazione con workflow di alerting e risposta, mentre Tetragon sfrutta eBPF per offrire osservabilità profonda e possibili azioni di enforcement a livello kernel \cite{falco-docs,tetragon-home}.
+Dal punto di vista operativo, una strategia completa di sicurezza cloud-native deve combinare controlli preventivi, come image scanning, admission control e least-privilege, con strumenti di detection e response runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. Strumenti come Falco e Tetragon rappresentano due approcci complementari a questa sfida: Falco è orientato principalmente al rilevamento e all'integrazione con workflow di alerting e risposta, mentre Tetragon sfrutta eBPF per offrire osservabilità profonda e possibili azioni di enforcement a livello kernel.
 
 \section{Fondamenti di eBPF}
 \label{sec:eBPF-fundamentals}
 \ac{ebpf} è un'estensione del meccanismo \ac{bpf} che consente l'esecuzione di programmi sandboxed all'interno del kernel Linux. Questi programmi possono essere utilizzati per monitorare e, in alcuni casi, influenzare il comportamento del sistema operativo in tempo reale, senza dover modificare il codice del kernel o caricare moduli proprietari \cite{ebpf-docs}.
 
-Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risposta a specifici hook del kernel, come kprobe, uprobe, tracepoint, socket filter e programmi di rete. Quando viene attivato, il programma può leggere o scrivere dati in apposite strutture chiamate mappe, scambiare informazioni con user space e, in alcuni casi, modificare il flusso di esecuzione di un evento. Le mappe rappresentano uno degli elementi chiave dell'architettura di eBPF: consentono di memorizzare stato, aggregare metriche e condividere informazioni tra il programma kernel e un agente user-space senza dover ricostruire ogni volta il contesto dell'evento \cite{ebpf-docs}.
+Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risposta a specifici hook del kernel, come kprobe, uprobe, tracepoint, socket filter e programmi di rete. Quando viene attivato, il programma può leggere o scrivere dati in apposite strutture chiamate mappe, scambiare informazioni con user space e, se necessario, modificare il flusso di esecuzione di un evento. Le mappe rappresentano uno degli elementi chiave dell'architettura di eBPF: consentono di memorizzare stato, aggregare metriche e condividere informazioni tra il programma kernel e un agente user-space senza dover ricostruire ogni volta il contesto dell'evento \cite{ebpf-docs}.
 
-La sicurezza del sistema è garantita dal Verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse \cite{ebpf-docs}. Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT consente di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi permette di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs}.
+La sicurezza del sistema è garantita dal Verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse. Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT (Just-In-Time) consente di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi permette di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs}.
 
 L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture}, che mostra in modo sintetico il percorso di un programma eBPF: il codice sorgente viene compilato in bytecode, poi caricato nel kernel assieme alle mappe, verificato dal Verifier e compilato in codice macchina dal JIT Compiler. A questo punto, il programma può reagire agli eventi del kernel, aggiornare le mappe e comunicare con user-space. % TODO: da ricontrollare
 
@@ -166,16 +168,16 @@ Questa progettazione presenta vantaggi chiari in termini di semplicità operativ
 \label{sec:tetragon}
 
 \subsection{Descrizione generale}
-Tetragon è un progetto di Cilium dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare \cite{tetragon-home}. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
+Tetragon è un progetto di Cilium dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
 
 In un ambiente cloud-native, dove i workload sono effimeri, distribuiti e spesso condividono lo stesso kernel dell'host, l'enforcement a basso livello è molto rilevante. Tetragon osserva processi, syscall, file, rete e contesto di esecuzione del workload, correlandoli con le informazioni Kubernetes e con l'identità del pod. Quando una policy viene violata, il sistema non si limita a produrre un avviso: può generare un'azione di mitigazione immediata, ad esempio interrompendo un processo o bloccando un'operazione prima che compia un effetto significativo.
 
 \subsection{Architettura interna}
-L'architettura di Tetragon è progettata per essere kernel-first. L'agente viene eseguito su ciascun nodo e carica programmi eBPF in risposta a hook del kernel, come kprobe, tracepoint e altri punti di osservazione del sistema. Questi programmi vengono verificati dal kernel e compilati in codice macchina JIT, in modo da consentire un monitoraggio efficiente con costo ridotto di trasferimento dei dati verso user-space. L'idea è che la decisione di raccolta e filtraggio avvenga il più vicino possibile alla sorgente dell'evento, senza far transitare tutti i dati attraverso un layer applicativo intermedio.
+L'architettura di Tetragon è progettata per essere kernel-first. L'agente viene eseguito su ciascun nodo e carica programmi eBPF in risposta a hook del kernel, come kprobe, tracepoint e altri punti di osservazione del sistema. Questi programmi vengono verificati dal kernel e compilati in codice macchina JIT, in modo da consentire un monitoraggio efficiente con costo ridotto di trasferimento dei dati verso user-space. L'idea è che la decisione di raccolta e filtraggio avvenga il più vicino possibile alla sorgente dell'evento, senza far transitare tutti i dati attraverso un layer applicativo intermedio. \cite{tetragon-docs}
 
-L'event path di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting.
+L'event path di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting. \cite{tetragon-docs}
 
-Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF (BPF Type Format). BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload.
+Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF (BPF Type Format)\footnote{Documentazione BTF: \url{https://docs.kernel.org/bpf/btf.html}}. BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload.
 
 \begin{figure}
     \centering
@@ -189,19 +191,33 @@ Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal 
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Contesti d'uso e integrazione}
+\chapter{Contesti d'uso e Deployment}
 \label{chap:use-cases}
-% Requisiti di Sistema e dipendenze del Kernel: BTF (CONFIG_DEBUG_INFO_BTF), versioni del kernel Linux e permessi CAP_SYS_ADMIN/CAP_BPF.
 % Analisi e Prova nei 4 Contesti di Deployment: Standalone Container, Docker Swarm, Kubernetes Cluster, Ambienti Cloud Generici.
 % Valutazione sulla Facilità di Configurazione: Complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. CRD TracingPolicy di Tetragon).
+(Da scrivere)
+
+Scaletta provvisioria:
+\begin{itemize}
+    \item Analisi e prova in contesti di standalone container, Docker Swarm, k8s e ambienti cloud generici.
+    \item Valutazione sulla facilità di configurazione: complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. TracingPolicy di Tetragon).
+\end{itemize}
 
 %----------------------------------------------------------------------------------------
 
 \chapter{Progettazione Suite di Test}
 \label{chap:testing}
-% Infrastruttura di Laboratorio: Configurazione dell'ambiente di test
-% Architettura dell'Applicazione Cavia
+% Descrizione possibili vulnerabilità e scenari di attacco: Escalation di Privilegio, Accesso a File Sensibili, Esecuzione di Comandi Arbitrari, ecc.
+% Configurazione dell'ambiente di test
 % Progettazione della Suite di Testing Automatizzata
+(Da scrivere)
+
+Scaletta provvisioria:
+\begin{itemize}
+    \item Descrizione possibili vulnerabilità e scenari di attacco: escalation di privilegio, accesso a file sensibili, esecuzione di comandi arbitrari, ecc.
+    \item Configurazione dell'ambiente di test
+    \item Progettazione della suite di testing automatizzata
+\end{itemize}
 
 %----------------------------------------------------------------------------------------
 
