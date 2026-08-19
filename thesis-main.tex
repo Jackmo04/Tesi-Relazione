@@ -158,7 +158,7 @@ Questa progettazione presenta vantaggi chiari in termini di semplicità operativ
 \begin{figure}
     \centering
     \includegraphics[width=\linewidth]{figures/falco_arch_ext.pdf}
-    \caption{Architettura semplificata di Falco. (Fonte immagine: \cite{falco-ext-ouputs})}
+    \caption{Architettura di Falco. (Fonte immagine: \cite{falco-ext-ouputs})}
     \label{fig:falco-architecture}
 \end{figure}
 
@@ -176,6 +176,13 @@ L'architettura di Tetragon è progettata per essere kernel-first. L'agente viene
 L'event path di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting.
 
 Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF (BPF Type Format). BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/tetragon_arch.pdf}
+    \caption{Architettura di Tetragon. (Fonte immagine: \cite{iximiuz-tetragon})}
+    \label{fig:tetragon-architecture}
+\end{figure}
 
 % In conclusione, mentre Falco mette al centro la flessibilità della regola e la capacità di integrazione con sistemi di sicurezza esterni, Tetragon mette al centro l'efficienza dell'osservazione e la capacità di enforcement in tempo reale. La scelta tra i due strumenti non dipende quindi solo dalla natura delle policy, ma anche dal livello di prevenzione richiesto: Falco è ideale per rilevamento, audit e risposta, Tetragon per osservabilità approfondita e mitigazione immediata delle azioni sospette. % TODO: forse rimuovere paragrafo
 
