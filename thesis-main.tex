@@ -196,83 +196,121 @@ Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal 
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Contesti d'uso e Deployment}
+\chapter{Casi d'uso e Deployment}
 \label{chap:use-cases}
-L'adozione di strumenti basati su eBPF richiede di distinguere il livello al quale viene eseguito il workload da quello al quale è disponibile il kernel osservato. Un container condivide il kernel dell'host, ma non ne eredita automaticamente i privilegi: l'agente deve essere installato sul nodo oppure eseguito con autorizzazioni e mount sufficienti per interagire con il sottosistema BPF. La presenza di Docker o Kubernetes non garantisce quindi, da sola, la fattibilità del deployment.
 
-Il capitolo confronta l'integrazione di Falco e Tetragon in quattro contesti: host singoli con Docker, cluster Docker Swarm, cluster Kubernetes e infrastrutture cloud. Il confronto considera accesso al kernel, distribuzione dell'agente, disponibilità del contesto del workload e gestione degli eventi.
+Questo capitolo descrive gli scenari pratici in cui Falco e Tetragon vengono adottati, i requisiti tecnici necessari alla loro esecuzione e le principali opzioni di deployment. L'obiettivo è fornire una base operativa per scegliere lo strumento più adatto al contesto infrastrutturale e ai requisiti di sicurezza runtime.
 
-\section{Requisiti di sistema e dipendenze del kernel}
-\label{sec:requisiti_kernel}
+\section{Casi d'uso principali}
+\label{sec:use-cases-main}
 
-A differenza degli agenti operanti esclusivamente nello spazio utente, l'integrazione di strumenti eBPF è legata allo stato del kernel Linux e alle autorizzazioni dell'agente. I requisiti effettivi dipendono dalla versione dello strumento, dal driver selezionato e dal tipo di hook utilizzato; devono quindi essere verificati nell'ambiente di destinazione.
+Pur condividendo la stessa area applicativa, Falco e Tetragon risultano ottimizzati per esigenze parzialmente diverse.
 
+\subsection{Casi d'uso di Falco}
+Falco è particolarmente efficace in scenari orientati a detection, auditing e integrazione con processi SOC/SIEM. I casi d'uso più ricorrenti includono:
 \begin{itemize}
-    \item \textbf{Compatibilità del kernel:} versione, configurazione e architettura determinano gli hook e le funzionalità disponibili. BTF e CO-RE possono ridurre la dipendenza dagli header del kernel, ma non eliminano la necessità di verificare il supporto alle singole funzionalità richieste \cite{linux-bpf-docs,linux-btf-docs}.
-    
-    \item \textbf{Privilegi:} il caricamento dei programmi, l'accesso alle mappe e l'ispezione dei processi richiedono privilegi elevati. Le capabilities necessarie variano con il kernel e con l'operazione; in un container privilegiato devono essere definite insieme alla relativa superficie di attacco.
-    
-    \item \textbf{File system virtuali e namespace:} a seconda della configurazione, l'agente può richiedere accesso a \texttt{/proc}, \texttt{/sys/kernel/debug} e \texttt{/sys/fs/bpf}. I mount devono riferirsi al nodo corretto; un \texttt{/proc} limitato al container dell'agente non è sufficiente per osservare tutti i workload del nodo.
+    \item \textbf{Rilevazione di attività anomale in container e host:} shell interattive inattese nei container, esecuzione di binari non previsti, accessi a path sensibili o modifiche sospette al filesystem.
+    \item \textbf{Monitoraggio di compliance e hardening operativo:} verifica continua del rispetto di policy runtime (ad esempio uso di privilegi elevati o capability non autorizzate).
+    \item \textbf{Alerting centralizzato:} inoltro degli eventi verso syslog, webhook, piattaforme SIEM o pipeline di incident response automatizzata.
+    \item \textbf{Analisi forense post-evento:} ricostruzione delle sequenze di eventi grazie a regole descrittive e output strutturati.
 \end{itemize}
 
-% ===================================================================
-\section{Analisi nei quattro contesti di deployment}
-\label{sec:ambienti_deployment}
+In sintesi, Falco è adatto quando il requisito dominante è aumentare visibilità e capacità di risposta, mantenendo elevata interoperabilità con strumenti esterni di sicurezza \cite{falco-docs,falco-about}.
 
-La flessibilità architetturale dei due strumenti viene esaminata considerando il confine tra nodo e orchestratore. Falco concentra la logica di regola e l'output nel componente user-space, mentre Tetragon può applicare alcune azioni nel percorso kernel dell'evento. In entrambi i casi la copertura è per-nodo: per osservare un cluster è necessario distribuire un agente su ogni nodo eleggibile.
-
-\subsection{Host singoli e container Docker}
-Su un host singolo gestito tramite Docker Engine, l'installazione più lineare consiste nell'eseguire l'agente direttamente sull'host. L'esecuzione in container è possibile, ma richiede privilegi, mount e accesso al runtime coerenti con il livello di osservazione desiderato \cite{docker-docs}:
+\subsection{Casi d'uso di Tetragon}
+Tetragon è preferibile in scenari in cui oltre alla visibilità è richiesta una riduzione della finestra di rischio attraverso enforcement tempestivo. I casi d'uso tipici sono:
 \begin{itemize}
-    \item \textbf{Falco:} può essere eseguito come servizio host oppure in un container con accesso agli eventi del nodo. Il socket Docker, quando usato, fornisce metadati utili per associare un evento al container, ma non sostituisce l'accesso al kernel.
-    \item \textbf{Tetragon:} può essere eseguito come binario host o container con accesso al sottosistema BPF e ai cgroup del nodo. L'enforcement può avvenire vicino all'evento, mentre pubblicazione e conservazione restano responsabilità del componente user-space.
+    \item \textbf{Prevenzione di azioni ad alto impatto:} blocco o terminazione di processi in presenza di condizioni vietate definite da policy.
+    \item \textbf{Runtime policy contestualizzate su Kubernetes:} decisioni basate su identità del workload, namespace o metadati correlati all'esecuzione.
+    \item \textbf{Osservabilità di processo e syscall a granularità elevata:} tracciamento di eventi kernel-side con filtraggio vicino alla sorgente.
+    \item \textbf{Riduzione del rumore di telemetria:} selezione più precisa degli eventi rilevanti prima della consegna a user-space.
 \end{itemize}
 
-\subsection{Docker Swarm}
-Docker Swarm distribuisce i task su più nodi, ma non offre un oggetto equivalente al \textit{DaemonSet} di Kubernetes per dichiarare agenti di sistema. La copertura deve quindi essere progettata esplicitamente:
+Tetragon risulta quindi adatto quando la priorità è applicare policy con bassa latenza e logica kernel-first, a fronte di maggiori dipendenze dal contesto Linux e dal supporto eBPF/BTF \cite{tetragon-docs,tetragon-docs-hooks}.
+
+\section{Requisiti di sistema e kernel}
+\label{sec:system-kernel-requirements}
+
+L'adozione di entrambi gli strumenti richiede prerequisiti comuni legati al supporto eBPF del kernel Linux, ma con livelli diversi di sensibilità alla versione del kernel e alle funzionalità disponibili.
+
+\subsection{Prerequisiti comuni}
 \begin{itemize}
-    \item \textbf{Distribuzione:} un servizio globale può mantenere un'istanza per nodo, purché sia configurato con i privilegi e i mount necessari. In alternativa, l'agente può essere installato e aggiornato come servizio dell'host.
-    \item \textbf{Correlazione:} ogni agente osserva il kernel del proprio nodo. Gli eventi devono essere inoltrati a un collector centrale con identificatore di nodo e timestamp coerenti, per consentire ricerca e correlazione tra task distribuiti.
+    \item \textbf{Sistema operativo Linux:} Falco e Tetragon operano principalmente su Linux, dove possono agganciarsi agli hook del kernel.
+    \item \textbf{Supporto eBPF abilitato:} disponibilità delle funzionalità eBPF e dei relativi meccanismi di caricamento/validazione.
+    \item \textbf{Permessi privilegiati:} esecuzione con capacità adeguate (tipicamente privilegi elevati o profili specifici) per interagire con il kernel.
+    \item \textbf{Compatibilità con orchestrazione/container runtime:} requisiti di integrazione con Docker, containerd o Kubernetes in base al deployment scelto.
 \end{itemize}
 
-\subsection{Kubernetes}
-Kubernetes offre il modello operativo più adatto alla distribuzione uniforme di agenti per-nodo. La gestione rimane tuttavia subordinata alle policy di sicurezza del cluster e alle autorizzazioni concesse ai pod \cite{kubernetes-docs}:
+\subsection{Requisiti specifici di Falco}
+Falco può essere eseguito con diverse strategie di acquisizione eventi (driver kernel o eBPF probe), il che offre maggiore flessibilità di compatibilità su ambienti eterogenei. In pratica:
 \begin{itemize}
-    \item \textbf{Distribuzione:} il \texttt{DaemonSet} permette di eseguire un'istanza per nodo e di gestirne aggiornamenti e riavvii. Taints, tolerations e selettori devono essere configurati per coprire anche i nodi dedicati.
-    \item \textbf{Contesto Kubernetes:} l'accesso all'API Server e ai metadati consente di associare gli eventi a pod, namespace, container e identità del workload. Se il mapping fallisce, l'evento kernel può restare disponibile senza contesto Kubernetes completo.
-    \item \textbf{Policy:} Falco usa regole e condizioni in YAML, mentre Tetragon supporta policy dichiarative come \texttt{TracingPolicy}. La scelta deve considerare se il requisito è rilevare un comportamento o impedirlo nel punto di esecuzione.
+    \item è necessario verificare la disponibilità del driver/probe compatibile con il kernel target;
+    \item in ambienti con policy restrittive, può essere richiesto un tuning esplicito di permessi e profili di sicurezza del container Falco;
+    \item l'impatto operativo è spesso legato più alla qualità delle regole che alla sola installazione del componente \cite{falco-docs,falco-docs-event-src}.
 \end{itemize}
 
-\subsection{IaaS, Kubernetes gestito e container serverless}
-Nel cloud il criterio discriminante è il controllo del nodo, non il provider utilizzato:
+\subsection{Requisiti specifici di Tetragon}
+Tetragon dipende in modo più marcato dalle capacità moderne del kernel, in particolare dal supporto a BTF per un tracciamento robusto e portabile. Di conseguenza:
 \begin{itemize}
-    \item \textbf{IaaS:} una VM offre normalmente controllo sufficiente per installare l'agente come servizio host, previa verifica di kernel, privilegi e mount. La copertura resta limitata alla singola VM.
-    \item \textbf{Kubernetes gestito:} i nodi worker possono consentire un deployment tramite \texttt{DaemonSet}, ma il risultato dipende dal provider, dalla gestione dei nodi e dalle policy che limitano i pod privilegiati. Non è corretto assumere accesso illimitato al kernel.
-    \item \textbf{Container serverless:} quando il provider non espone il nodo o il caricamento di programmi BPF, un agente per-nodo non è installabile. La telemetria deve provenire dai log e dalle API offerte dal servizio, oppure da controlli applicati prima dell'esecuzione.
+    \item è consigliato l'uso di kernel recenti con supporto BTF disponibile;
+    \item la verifica preliminare delle funzionalità eBPF del nodo è una fase critica prima del rollout;
+    \item in cluster eterogenei, differenze tra nodi possono influenzare uniformità e affidabilità delle policy \cite{tetragon-docs,tetragon-docs-hooks}.
 \end{itemize}
 
-% ===================================================================
-\section{Valutazione della facilità di configurazione e gestione}
-\label{sec:valutazione_configurazione}
+\section{Deployment: host, Docker standalone e Kubernetes}
+\label{sec:deployment-models}
 
-L'onere di configurazione dipende dal contesto oltre che dallo strumento. Su un host singolo prevale il problema dei privilegi e dell'accesso ai file system virtuali; in Kubernetes diventano centrali la distribuzione per-nodo, le autorizzazioni all'API Server e il ciclo di vita delle policy. La Tabella~\ref{tab:confronto_configurazione} riassume le differenze operative senza costituire una graduatoria assoluta.
+La scelta della modalità di deployment influenza profondamente visibilità, copertura e costo operativo.
 
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{Confronto dei principali aspetti di deployment e configurazione.}
-    \label{tab:confronto_configurazione}
-    \begin{tabularx}{\textwidth}{@{}lXX@{}}
-        \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
-        \hline
-        Modello operativo & Detection e alerting; la risposta è demandata agli output o a sistemi esterni. & Osservabilità con possibilità di enforcement nel percorso dell'evento. \\
-        Configurazione & Regole e condizioni in YAML, con output e integrazioni. & Policy dichiarative, tra cui \texttt{TracingPolicy}, sensibili a hook e azioni supportate. \\
-        Distribuzione & Servizio host o agente per-nodo; in Kubernetes tipicamente tramite \texttt{DaemonSet}. & Binario o agente per-nodo; in Kubernetes deployment e policy possono essere gestiti in modo dichiarativo. \\
-        Punto di attenzione & Tuning delle regole, volume degli alert e affidabilità della risposta. & Compatibilità del kernel, correttezza degli hook e rischio di bloccare attività legittime. \\
-    \end{tabularx}
-\end{table}
+\subsection{Installazione su host}
+L'installazione diretta su host è adatta a server singoli, laboratori o ambienti di test dove è necessario controllare in modo fine dipendenze e configurazione.
+\begin{itemize}
+    \item \textbf{Falco:} installazione generalmente lineare; consente tuning rapido di regole e output locali.
+    \item \textbf{Tetragon:} possibile su host Linux, ma richiede maggiore attenzione alla compatibilità kernel/BTF e ai privilegi necessari.
+\end{itemize}
 
-La scelta può essere ricondotta al requisito prevalente. Falco è adatto quando il requisito principale è trasformare eventi eterogenei in alert integrabili con sistemi di monitoraggio e incident response. Tetragon è più indicato quando la policy richiede una decisione vicina all'evento e un'azione di enforcement; richiede però una validazione più accurata del kernel, dei privilegi e degli effetti della policy. In entrambi i casi, un deployment completo deve esplicitare i nodi coperti, gli eventi non arricchiti e il percorso degli alert fino al sistema di risposta.
+\subsection{Deployment in container Docker standalone}
+L'esecuzione come container standalone semplifica packaging e distribuzione, ma richiede mount e capability adeguate per osservare il kernel dell'host.
+\begin{itemize}
+    \item \textbf{Falco:} modalità molto diffusa; facilità di avvio rapida, soprattutto per proof-of-concept e ambienti di sviluppo.
+    \item \textbf{Tetragon:} fattibile, ma la configurazione dei privilegi e dei binding kernel-side è in genere più sensibile agli errori.
+\end{itemize}
+
+\subsection{Deployment in Kubernetes}
+In produzione cloud-native, Kubernetes rappresenta lo scenario principale per entrambi gli strumenti, tipicamente con distribuzione per nodo (ad esempio pattern DaemonSet).
+\begin{itemize}
+    \item \textbf{Falco:} integrazione matura tramite chart/manifests; buona disponibilità di regole di partenza e output verso stack osservabilità e sicurezza.
+    \item \textbf{Tetragon:} integrazione naturale nell'ecosistema Cilium/Kubernetes; molto efficace quando si vogliono policy runtime contestualizzate e enforcement rapido.
+\end{itemize}
+
+Nei cluster multi-tenant, la fase più delicata non è la sola installazione, ma la definizione progressiva delle policy per limitare falsi positivi e regressioni operative.
+
+\section{Facilità di configurazione: confronto operativo}
+\label{sec:configuration-ease}
+
+Dal punto di vista pratico, la facilità di configurazione dipende da due fattori: curva di apprendimento delle policy e prerequisiti infrastrutturali.
+
+\subsection{Falco: punti di forza e complessità}
+\begin{itemize}
+    \item \textbf{Pro:} sintassi di regole dichiarativa e consolidata, ampia documentazione, numerosi esempi e integrazioni immediate con sistemi di alerting.
+    \item \textbf{Contro:} tuning iniziale spesso necessario per ridurre rumore e falsi positivi, soprattutto in workload molto dinamici.
+\end{itemize}
+
+Nel complesso, Falco tende a essere percepito come più accessibile nelle prime fasi di adozione, in particolare per team già orientati a SOC e monitoring.
+
+\subsection{Tetragon: punti di forza e complessità}
+\begin{itemize}
+    \item \textbf{Pro:} modello policy vicino al kernel, elevata precisione su eventi di processo/syscall e potenziale enforcement immediato.
+    \item \textbf{Contro:} prerequisiti kernel più stringenti e maggiore sensibilità alla configurazione dell'ambiente Linux/Kubernetes.
+\end{itemize}
+
+Tetragon può richiedere un effort iniziale superiore, ma offre vantaggi significativi nei contesti dove il blocco tempestivo delle azioni malevole è un requisito prioritario.
+
+\section{Sintesi del capitolo}
+\label{sec:use-cases-summary}
+
+Falco e Tetragon non vanno considerati necessariamente alternativi: in molti contesti possono essere complementari. Falco eccelle come layer di detection, auditing e integrazione con pipeline di risposta; Tetragon eccelle dove è richiesta enforcement kernel-first con minima latenza. La scelta finale dipende dal trade-off tra facilità di adozione, maturità operativa del team e livello di prevenzione richiesto.
+
 
 %----------------------------------------------------------------------------------------
 
