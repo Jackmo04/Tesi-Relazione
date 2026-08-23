@@ -6,6 +6,7 @@
 \usepackage{shortcuts}
 \usepackage{acro}
 \usepackage{hyperref}
+\usepackage{tabularx}
 
 \hypersetup{
     colorlinks=true,
@@ -199,13 +200,68 @@ Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal 
 \label{chap:use-cases}
 % Analisi e Prova nei 4 Contesti di Deployment: Standalone Container, Docker Swarm, Kubernetes Cluster, Ambienti Cloud Generici.
 % Valutazione sulla Facilità di Configurazione: Complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. CRD TracingPolicy di Tetragon).
-(Da scrivere)
+L'adozione di soluzioni basate su eBPF per la sicurezza a livello kernel impone una valutazione preliminare circa la loro compatibilità, i requisiti di sistema e la complessità di integrazione in infrastrutture eterogenee. Sebbene la letteratura e la documentazione tecnica convergano prevalentemente sull'orchestrazione mediante Kubernetes, le architetture enterprise reali comprendono ambienti distribuiti che spaziano da container eseguiti su singoli host bare-metal a cluster multi-nodo gestiti in cloud pubblico.
 
-Scaletta provvisioria:
+Il presente capitolo analizza la fattibilità tecnica, i vincoli del kernel Linux e l'onere architetturale necessario per integrare \textbf{Falco} e \textbf{Tetragon} in quattro contesti operativi: applicazioni standalone (Docker), cluster Docker Swarm, ambienti nativi Kubernetes e istanze generiche in cloud pubblico.
+
+\section{Requisiti di sistema e dipendenze del Kernel}
+\label{sec:requisiti_kernel}
+
+A differenza dei tradizionali agenti di sicurezza operanti esclusivamente nello spazio utente, l'integrazione di strumenti eBPF è strettamente legata allo stato e alla configurazione del kernel Linux sottostante:
+
 \begin{itemize}
-    \item Analisi e prova in contesti di standalone container, Docker Swarm, k8s e ambienti cloud generici.
-    \item Valutazione sulla facilità di configurazione: complessità nella scrittura e nel tuning delle regole (Sintassi YAML di Falco vs. TracingPolicy di Tetragon).
+    \item \textbf{BPF Type Format (BTF) e CO-RE:} L'impiego dei driver moderni di Falco e del runtime di Tetragon richiede kernel Linux recenti (tipicamente versione $\ge 5.8$) compilati con il flag \texttt{CONFIG\_DEBUG\_INFO\_BTF=y}. Il supporto a BTF abilita il paradigma \textit{Compile Once -- Run Everywhere} (CO-RE), consentendo al bytecode eBPF di adattarsi dinamicamente ai layout di memoria del kernel ospitante senza richiedere la presenza dei kernel header per la compilazione \textit{in-loco}.
+    
+    \item \textbf{Privilegi e Linux Capabilities:} L'iniezione di programmi eBPF richiede privilegi elevati. L'agente deve essere eseguito con utente \texttt{root} o disporre delle capabilities \texttt{CAP\_BPF}, \texttt{CAP\_PERFMON}, \texttt{CAP\_SYS\_ADMIN} e \texttt{CAP\_SYS\_PTRACE} per interagire con il sottosistema BPF, registrare le sonde (\textit{kprobes}/\textit{tracepoints}) e ispezionare le strutture di processo dei target.
+    
+    \item \textbf{Accesso ai Virtual File System:} Gli strumenti necessitano dell'accesso in lettura e montaggio su directory virtuali di sistema, tra cui \texttt{/sys/kernel/debug} (\textit{debugfs}), \texttt{/sys/fs/bpf} (\textit{bpffs}) e \texttt{/proc}, indispensabili per mappare le chiamate di sistema (\textit{syscall}) ai rispettivi identificatori di processo (PID) e namespace isolati.
 \end{itemize}
+
+% ===================================================================
+\section{Analisi in quattro contesti di Deployment}
+\label{sec:ambienti_deployment}
+
+La flessibilità architetturale dei due strumenti viene di seguito esaminata in relazione alle quattro tipologie di infrastruttura target.
+
+\subsection{Applicazioni Standalone}
+Nel contesto di singoli host su cui operano container gestiti tramite Docker Engine, l'integrazione varia in funzione del runtime:
+\begin{itemize}
+    \item \textbf{Falco:} Può essere installato come servizio \texttt{systemd} sull'host o incapsulato in un container privilegiato. Interagendo con il socket locale di Docker (\texttt{/var/run/docker.sock}), Falco arricchisce i dati catturati a livello kernel associando alla syscall il nome e l'immagine del container.
+    \item \textbf{Tetragon:} Viene eseguito come binario autonomo o container privilegiato con volumi montati su \texttt{/sys/fs/bpf} e \texttt{/proc}. Traccia ed esegue l'enforcement direttamente in-kernel mappando i processi tramite l'albero dei cgroup locali.
+\end{itemize}
+
+\subsection{Docker Swarm}
+Docker Swarm orchestra l'esecuzione di servizi distribuiti su cluster multi-nodo, introducendo vincoli nella distribuzione e centralizzazione degli eventi:
+\begin{itemize}
+    \item \textbf{Distribuzione degli Agenti:} In assenza di un costrutto dichiarativo identico ai \textit{DaemonSet} con pieno accesso ai privilegi di kernel injection, gli agenti devono essere avviati come servizi globali (\texttt{mode: global}) con flag di privilegio abilitate, oppure preinstallati come demoni host su ciascun nodo.
+    \item \textbf{Tracciamento Multi-Nodo:} Operando in modo isolato sul kernel di ciascun nodo, la correlazione richiede un'infrastruttura di inoltro (es. \textit{Falcosidekick} per Falco o collector come Fluentbit/Vector per Tetragon) per aggregare gli eventi generati da task eterogenei su nodi distinti.
+\end{itemize}
+
+\subsection{Kubernetes}
+Rappresenta l'ambiente primario di progettazione per entrambi i framework, garantendo la massima aderenza architetturale e semplicità operativa:
+\begin{itemize}
+    \item \textbf{Distribuzione Automatizzata:} Entrambe le tecnologie dispongono di Helm Chart ufficiali che distribuiscono gli agenti tramite \texttt{DaemonSet}, garantendo la copertura uniforme su tutti i nodi del cluster.
+    \item \textbf{Kube-Aware Context Enrichment:} I demoni comunicano direttamente con il control plane (API Server) per arricchire i log delle chiamate di sistema con metadati di alto livello quali Pod Name, Namespace, Labels e Deployment di riferimento.
+    \item \textbf{Configurazione Dichiarativa:} Tetragon sfrutta apposite \textit{Custom Resource Definitions} (CRD, come \texttt{TracingPolicy}), consentendo di definire regole di enforcement applicate nativamente all'interno del ciclo di vita dei manifesti Kubernetes.
+\end{itemize}
+
+\subsection{Ambienti Cloud Generici e Managed Kubernetes}
+L'integrazione su infrastrutture cloud varia a seconda del livello di astrazione del servizio:
+\begin{itemize}
+    \item \textbf{Istanze IaaS (VM Compute Engine, EC2):} Si comportano come macchine Linux bare-metal; l'integrabilità è completa a condizione che l'immagine del sistema operativo fornisca il supporto BTF abilitato.
+    \item \textbf{Cluster Kubernetes Gestiti (EKS, GKE, AKS):} I nodi worker offrono pieno accesso all'esecuzione di container privilegiati, consentendo il caricamento dei programmi eBPF senza limitazioni operative.
+    \item \textbf{Servizi Container Serverless (AWS Fargate, Google Cloud Run):} Rappresentano un \textbf{limite architetturale invalicabile}. Poiché il kernel sottostante è interamente gestito e isolato dal cloud provider, l'assenza di privilegi \texttt{CAP\_BPF} e di visibilità globale sul sistema operativo ospitante rende impossibile il deployment di Falco o Tetragon a livello di nodo in tali contesti.
+\end{itemize}
+
+% ===================================================================
+\section{Valutazione della facilità di Configurazione e Gestione}
+\label{sec:valutazione_configurazione}
+
+L'onere di configurazione e la curva di apprendimento differiscono notevolmente per via della differente filosofia di progettazione dei due strumenti. La Tabella~\ref{tab:confronto_configurazione} sintetizza i criteri di confronto principali.
+
+% inserire tabella comparativa
+
+In sintesi, mentre l'ecosistema Kubernetes esprime la massima sinergia architetturale per entrambe le soluzioni, Falco garantisce una maggiore immediatezza di adozione in contesti eterogenei o su singoli host. Tetragon offre un controllo in-kernel superiore grazie all'enforcement preventivo, imponendo tuttavia una conoscenza più approfondita dei punti di aggancio del kernel ospitante.
 
 %----------------------------------------------------------------------------------------
 
