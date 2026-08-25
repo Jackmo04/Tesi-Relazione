@@ -249,7 +249,7 @@ Tetragon, invece, dipende in modo più marcato dalle capacità moderne del kerne
 è consigliato l'uso di kernel recenti con supporto BTF disponibile, la verifica preliminare delle funzionalità eBPF del nodo diventa una fase critica prima del rollout e, nei cluster eterogenei, eventuali differenze tra nodi possono influenzare l'uniformità e l'affidabilità delle policy \cite{tetragon-docs,tetragon-docs-hooks}.
 
 \section{Deployment: host, Docker standalone e Kubernetes}
-\label{sec:deployment-models}
+\label{sec:deployment-models} % TODO: rewrite almost completely
 
 La scelta della modalità di deployment influenza profondamente visibilità, copertura e costo operativo.
 
@@ -279,23 +279,59 @@ Nei cluster multi-tenant, la fase più delicata non è la sola installazione, ma
 \section{Facilità di configurazione: confronto operativo}
 \label{sec:configuration-ease}
 
-Dal punto di vista pratico, la facilità di configurazione dipende da due fattori: curva di apprendimento delle policy e prerequisiti infrastrutturali.
+La facilità di adozione di uno strumento di runtime security non dipende soltanto dal numero di comandi necessari per avviarlo. È necessario considerare anche i prerequisiti del nodo, la complessità delle policy, il livello di integrazione con l'orchestratore, le attività di tuning e la gestione delle modifiche nel tempo. Le Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation} confrontano Falco e Tetragon secondo questi criteri.
 
-\subsection{Falco: punti di forza e complessità}
-\begin{itemize}
-    \item \textbf{Pro:} sintassi di regole dichiarativa e consolidata, ampia documentazione, numerosi esempi e integrazioni immediate con sistemi di alerting.
-    \item \textbf{Contro:} tuning iniziale spesso necessario per ridurre rumore e falsi positivi, soprattutto in workload molto dinamici.
-\end{itemize}
+\begin{table}[htbp]
+    \centering
+    \caption{Confronto operativo tra Falco e Tetragon: installazione e configurazione.}
+    \label{tab:configuration-comparison-installation}
+    \small
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} X X}
+        \hline
+        \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
+        \hline
+        Installazione & Generalmente semplice tramite pacchetti, container o chart Helm. In Kubernetes è normalmente distribuito come DaemonSet. & Generalmente distribuito come agente per nodo, spesso tramite chart Helm. L'installazione è semplice in un ambiente compatibile, ma più sensibile alla configurazione del kernel. \\
+        \hline
+        Prerequisiti infrastrutturali & Richiede Linux, accesso agli eventi del kernel e privilegi adeguati. La disponibilità di un driver compatibile o della eBPF probe influenza la procedura di setup. & Richiede Linux con funzionalità eBPF compatibili; il supporto BTF e gli hook disponibili sono particolarmente importanti per il tracing e l'enforcement. \\
+        \hline
+        Configurazione iniziale & Di complessità contenuta per il monitoraggio di base, ma può richiedere la selezione della sorgente degli eventi, degli output e delle regole da attivare. & Di complessità più elevata, perché oltre all'agente è necessario definire gli hook, gli eventi e, quando previsto, le azioni di enforcement. \\
+        \hline
+        Modalità di configurazione & File YAML per le regole e la configurazione dell'agente; supporta output e integrazioni verso sistemi esterni. & Risorse Kubernetes YAML, come \textit{TracingPolicy} e \textit{ClusterTracingPolicy}, oltre ai parametri dell'agente e del deployment. \\
+        \hline
+        Curva di apprendimento delle policy & Sintassi dichiarativa orientata alla condizione dell'evento e al contesto; è relativamente accessibile a chi conosce monitoring e SIEM. & Richiede familiarità con eventi di processo e syscall, hook eBPF, contesto Kubernetes e distinzione tra osservazione ed enforcement. \\
+        \hline
+    \end{tabularx}
+\end{table}
 
-Nel complesso, Falco tende a essere percepito come più accessibile nelle prime fasi di adozione, in particolare per team già orientati a SOC e monitoring.
+\begin{table}[htbp]
+    \centering
+    \caption{Confronto operativo tra Falco e Tetragon: gestione e comportamento operativo.}
+    \label{tab:configuration-comparison-operation}
+    \small
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} X X}
+        \hline
+        \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
+        \hline
+        Tuning e falsi positivi & Il tuning delle regole è spesso necessario per ridurre il rumore in workload dinamici; le eccezioni possono essere gestite nella logica delle regole. & Il filtraggio vicino alla sorgente può ridurre la telemetria non necessaria, ma policy troppo ampie o azioni di blocco non verificate possono produrre regressioni operative. \\
+        \hline
+        Integrazione & Ampia interoperabilità con syslog, webhook, file, SIEM e pipeline di risposta. & Integrazione naturale con Kubernetes e l'ecosistema Cilium; l'output può essere raccolto e inoltrato attraverso componenti esterni. \\
+        \hline
+        Aggiornamento e gestione & Le regole possono essere modificate senza riprogettare il programma kernel; la gestione è quindi relativamente flessibile. & Le policy sono modificabili in modo dichiarativo, ma la loro efficacia continua a dipendere dalla compatibilità tra kernel, hook e versione dell'agente. \\
+        \hline
+        Impatto operativo & Il passaggio degli eventi al componente user-space può aumentare il volume di telemetria e il costo del processamento, in funzione delle regole attive. & Il filtraggio kernel-side può ridurre il volume trasferito a user-space; il costo dipende comunque dal numero di hook e dalla complessità delle policy. \\
+        \hline
+        Enforcement & Principalmente orientato a detection, alerting e risposta successiva all'evento. & Progettato per supportare enforcement a bassa latenza, con possibilità di terminare processi o bloccare azioni secondo la policy. \\
+        \hline
+    \end{tabularx}
+\end{table}
 
-\subsection{Tetragon: punti di forza e complessità}
-\begin{itemize}
-    \item \textbf{Pro:} modello policy vicino al kernel, elevata precisione su eventi di processo/syscall e potenziale enforcement immediato.
-    \item \textbf{Contro:} prerequisiti kernel più stringenti e maggiore sensibilità alla configurazione dell'ambiente Linux/Kubernetes.
-\end{itemize}
+Nel complesso, Falco presenta una barriera di ingresso più contenuta quando l'obiettivo iniziale è ottenere visibilità e generare alert. La disponibilità di regole e integrazioni già predisposte facilita l'inserimento in pipeline di monitoring e incident response; rimane tuttavia necessario un periodo di tuning per adattare le regole al comportamento legittimo dei workload.
 
-Tetragon può richiedere un effort iniziale superiore, ma offre vantaggi significativi nei contesti dove il blocco tempestivo delle azioni malevole è un requisito prioritario.
+Tetragon richiede invece una preparazione più attenta dell'ambiente, soprattutto quando si utilizzano policy contestualizzate o azioni di enforcement. Questa maggiore complessità iniziale è compensata dalla possibilità di eseguire filtraggio e controllo più vicini all'evento, con una riduzione della finestra di rischio e una granularità elevata sulle operazioni di processo e syscall.
+
+La scelta non è quindi riconducibile a una semplice contrapposizione tra uno strumento ``facile'' e uno ``difficile''. Falco è generalmente più adatto a un'adozione progressiva centrata su detection e interoperabilità, mentre Tetragon è più indicato quando il team dispone di competenze Linux/eBPF e il requisito di enforcement giustifica un investimento maggiore nella configurazione e nella validazione delle policy.
 
 \bigskip\noindent
 In sintesi, Falco e Tetragon non vanno considerati necessariamente alternativi: in molti contesti possono essere complementari. Falco eccelle come layer di detection, auditing e integrazione con pipeline di risposta; Tetragon eccelle dove è richiesta enforcement kernel-first con minima latenza. La scelta finale dipende dal trade-off tra facilità di adozione, maturità operativa del team e livello di prevenzione richiesto.
