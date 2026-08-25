@@ -53,6 +53,7 @@
 %----------------------------------------------------------------------------------------
 
 \mainlinespacing{1.241}
+\raggedbottom
 
 \begin{document}
 
@@ -287,7 +288,7 @@ La facilità di adozione di uno strumento di runtime security non dipende soltan
     \label{tab:configuration-comparison-installation}
     \small
     \renewcommand{\arraystretch}{1.25}
-    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} X X}
+    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
         \hline
         \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
         \hline
@@ -310,7 +311,7 @@ La facilità di adozione di uno strumento di runtime security non dipende soltan
     \label{tab:configuration-comparison-operation}
     \small
     \renewcommand{\arraystretch}{1.25}
-    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} X X}
+    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
         \hline
         \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
         \hline
@@ -402,7 +403,11 @@ Scaletta provvisioria:
 \backmatter
 
 \bibliographystyle{plain}
+\begingroup
+\sloppy
+\raggedright
 \bibliography{bibliography}
+\endgroup
 
 \begin{acknowledgements}
 (Ringraziamenti a supervisori, colleghi, amici e famiglia.)
