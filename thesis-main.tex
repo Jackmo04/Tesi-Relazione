@@ -340,19 +340,99 @@ In sintesi, Falco e Tetragon non vanno considerati necessariamente alternativi: 
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Progettazione Suite di Test}
+\chapter{Testing e Validazione}
 \label{chap:testing}
 % Descrizione possibili vulnerabilità e scenari di attacco: Escalation di Privilegio, Accesso a File Sensibili, Esecuzione di Comandi Arbitrari, ecc.
 % Configurazione dell'ambiente di test
 % Progettazione della Suite di Testing Automatizzata
-(Da scrivere)
+\section{Motivazione e Obiettivi}
 
-Scaletta provvisioria:
+Il confronto tra Falco e Tetragon non puo essere limitato a una descrizione architetturale o a un'analisi qualitativa delle funzionalita dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel. Per questo motivo, la tesi introduce un programma di testing automatizzato con due finalita principali: generare scenari riproducibili e misurare in modo quantitativo l'efficacia di detection/enforcement.
+
+La motivazione sperimentale nasce da tre esigenze. Primo, verificare la capacita reale di individuare comportamenti malevoli in presenza di rumore operativo (processi legittimi, burst di syscall, I/O intenso). Secondo, misurare il costo operativo dell'osservabilita kernel-level, evitando valutazioni basate solo su percezioni o benchmark non comparabili. Terzo, analizzare la differenza tra un modello prevalentemente reattivo (Falco) e un modello kernel-first con possibilita di blocco (Tetragon), soprattutto in termini di latenza e finestra di rischio.
+
+Gli scenari di test considerano classi di vulnerabilita e tecniche offensive realistiche per ambienti cloud-native, tra cui:
 \begin{itemize}
-    \item Descrizione possibili vulnerabilità e scenari di attacco: escalation di privilegio, accesso a file sensibili, esecuzione di comandi arbitrari, ecc.
-    \item Configurazione dell'ambiente di test
-    \item Progettazione della suite di testing automatizzata
+    \item \textbf{Privilege escalation e abuso di capability:} tentativi di esecuzione con privilegi non attesi, uso anomalo di namespace/capability, process injection.
+    \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di secret, token di servizio, file di configurazione critici e mount dell'host.
+    \item \textbf{Command execution e living-off-the-land:} avvio di shell inattese, chain di comandi sospetti, utilizzo di binari legittimi per finalita malevole.
+    \item \textbf{Comportamenti di evasione e overload:} burst di eventi, flood di syscall e pattern rumorosi volti a ridurre la qualita del segnale o a causare perdita di eventi.
 \end{itemize}
+
+L'obiettivo non e dimostrare che uno strumento sia ``migliore'' in assoluto, ma misurare in quali condizioni ciascun approccio mantiene efficacia, affidabilita e sostenibilita operativa.
+
+Dal punto di vista metodologico, uno degli obiettivi centrali è la costruzione di una matrice di confusione per la componente di detection, con classificazione degli eventi in \textit{True Positive} (TP), \textit{False Positive} (FP), \textit{False Negative} (FN) e \textit{True Negative} (TN). A partire da questa base vengono calcolate le metriche principali:
+
+\[
+\text{Detection Recall (TPR)} = \frac{TP}{TP + FN}
+\]
+
+\noindent che misura la percentuale di attacchi reali correttamente identificati.
+
+\[
+\text{Precision} = \frac{TP}{TP + FP}
+\]
+
+\noindent che misura l'affidabilita delle allerte generate e il loro impatto sul carico di notifica/triage.
+
+Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di robustezza, tempestivita e costo infrastrutturale:
+
+\[
+\text{Event Loss Rate} = \frac{\text{Eventi}_{\text{Inviati}} - \text{Eventi}_{\text{Intercettati}}}{\text{Eventi}_{\text{Inviati}}} \times 100
+\]
+
+\noindent utile a valutare la resilienza del ring buffer eBPF sotto alto carico di IOPS/syscall.
+
+\[
+\text{Detection Latency} \; (ms)
+\]
+
+\noindent definita come intervallo temporale tra esecuzione del payload e scrittura del log/evento.
+
+\[
+\text{Enforcement Time Difference} \; (ms)
+\]
+
+\noindent definita come differenza tra il tempo di blocco kernel-side di Tetragon e il tempo di mitigazione ottenuto con catena di alerting/webhook in Falco.
+
+\[
+\text{Resource Overhead} = \{\text{CPU }(\%),\; \text{RAM }(MB)\}
+\]
+
+\noindent per quantificare l'impatto dei daemon sul nodo host durante scenari di stress.
+
+In sintesi, questa sezione definisce gli obiettivi del programma di validazione: misurare accuratezza, rumore, perdita di eventi, latenza di rilevazione, differenza di tempo nell'enforcement e overhead computazionale. I risultati ottenuti costituiranno la base empirica del confronto nel capitolo successivo, riducendo il rischio di conclusioni aneddotiche e aumentando la riproducibilita dell'analisi.
+
+\section{Configurazione dell'ambiente di test}
+
+L'ambiente sperimentale e stato predisposto in una \ac{vm} Linux dedicata, con kernel:
+\texttt{Linux vm-tesi 7.0.0-29-generic \#29-Ubuntu SMP PREEMPT\_DYNAMIC Fri Jul 17 20:52:35 UTC 2026 x86\_64 GNU/Linux}.
+La scelta di eseguire i test in \ac{vm} consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
+
+Per il deployment e stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
+\begin{itemize}
+    \item mantenere parita di contesto di esecuzione (stesso nodo, stesso kernel, stesso runtime);
+    \item versionare in modo esplicito immagini e parametri di avvio;
+    \item riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
+\end{itemize}
+
+La configurazione utilizzata e riportata nel \Cref{lst:compose-falco-tetragon}.
+
+\lstinputlisting[
+    language=yaml,
+    caption={Docker Compose dell'ambiente di test con Falco e Tetragon.},
+    label={lst:compose-falco-tetragon}
+]{listings/docker-compose.yaml}
+
+Nel servizio Falco e stata fissata l'immagine \texttt{falcosecurity/falco:0.44.1}, con esecuzione privilegiata, \texttt{pid: host} e \texttt{network\_mode: host}. I mount verso \texttt{/proc}, \texttt{/etc}, \texttt{/var/run/docker.sock} e \texttt{/sys/kernel/tracing} forniscono il contesto necessario alla raccolta eventi runtime. L'output e serializzato in JSON su file (\texttt{falco\_events.json}) per consentire parsing offline e calcolo uniforme delle metriche.
+
+Nel servizio Tetragon e stata fissata l'immagine \texttt{quay.io/cilium/tetragon:v1.7.0}, anch'essa con esecuzione privilegiata e namespace host (PID, cgroup e rete). Il mount di \texttt{/sys/kernel/btf/vmlinux} abilita l'uso delle informazioni BTF del kernel, mentre la directory \texttt{tetragon-policies} contiene le policy di tracing/enforcement caricate a runtime. Anche in questo caso l'export eventi avviene su file JSON (\texttt{tetragon\_events.json}), con allowlist iniziale focalizzata su \texttt{PROCESS\_KPROBE}, \texttt{PROCESS\_TRACEPOINT} e \texttt{PROCESS\_LSM}.
+
+Entrambi i servizi scrivono i log in directory condivise del progetto (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing. La normalizzazione dei timestamp e dei campi evento viene gestita nella pipeline di analisi descritta nella sezione successiva.
+
+Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalla policy attiva. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto empirico robusto tra i due strumenti nelle medesime condizioni operative.
+
+\section{Progettazione del programma di testing automatizzato}
 
 %----------------------------------------------------------------------------------------
 
