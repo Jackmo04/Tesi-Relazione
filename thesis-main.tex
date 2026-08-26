@@ -405,17 +405,17 @@ In sintesi, questa sezione definisce gli obiettivi del programma di validazione:
 
 \section{Configurazione dell'ambiente di test}
 
-L'ambiente sperimentale e stato predisposto in una \ac{vm} Linux dedicata, con kernel Linux \texttt{7.0.0-29-generic} (Ubuntu SMP \texttt{PREEMPT\_DYNAMIC}, architettura \texttt{x86\_64}).
+L'ambiente sperimentale è stato predisposto in una \ac{vm} Linux dedicata, con kernel Linux \texttt{7.0.0-29-generic} (Ubuntu SMP \texttt{PREEMPT\_DYNAMIC}, architettura \texttt{x86\_64}).
 La scelta di eseguire i test in \ac{vm} consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
 
-Per il deployment e stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
+Per il deployment è stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
 \begin{itemize}
     \item mantenere parita di contesto di esecuzione (stesso nodo, stesso kernel, stesso runtime);
     \item versionare in modo esplicito immagini e parametri di avvio;
     \item riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
 \end{itemize}
 
-La configurazione utilizzata e riportata nel \Cref{lst:compose-falco-tetragon}.
+La configurazione utilizzata è riportata nel \Cref{lst:compose-falco-tetragon}.
 
 \lstinputlisting[
     language=yaml,
@@ -423,9 +423,11 @@ La configurazione utilizzata e riportata nel \Cref{lst:compose-falco-tetragon}.
     label={lst:compose-falco-tetragon}
 ]{listings/docker-compose.yaml}
 
-Nel servizio Falco e stata fissata l'immagine \nolinkurl{falcosecurity/falco:0.44.1}, con esecuzione privilegiata, \texttt{pid: host} e \texttt{network\_mode: host}. I mount verso \texttt{/proc}, \texttt{/etc}, \texttt{/var/run/docker.sock} e \texttt{/sys/kernel/tracing} forniscono il contesto necessario alla raccolta eventi runtime. L'output e serializzato in JSON su file (\texttt{falco\_events.json}) per consentire parsing offline e calcolo uniforme delle metriche.
+Nel servizio Falco è stata fissata l'immagine \nolinkurl{falcosecurity/falco:0.44.1}, con esecuzione privilegiata, \texttt{pid: host} e \texttt{network\_mode: host}. I mount verso \texttt{/proc}, \texttt{/etc}, \texttt{/var/run/docker.sock} e \texttt{/sys/kernel/tracing} forniscono il contesto necessario alla raccolta eventi runtime. L'output è serializzato in JSON su file (\texttt{falco\_events.json}) per consentire parsing offline e calcolo uniforme delle metriche.
 
-Nel servizio Tetragon e stata fissata l'immagine \nolinkurl{quay.io/cilium/tetragon:v1.7.0}, anch'essa con esecuzione privilegiata e namespace host (PID, cgroup e rete). Il mount di \texttt{/sys/kernel/btf/vmlinux} abilita l'uso delle informazioni BTF del kernel, mentre la directory \texttt{tetragon-policies} contiene le policy di tracing/enforcement caricate a runtime. Anche in questo caso l'export eventi avviene su file JSON (\texttt{tetragon\_events.json}), con allowlist iniziale focalizzata su \texttt{PROCESS\_KPROBE}, \texttt{PROCESS\_TRACEPOINT} e \texttt{PROCESS\_LSM}.
+Nel servizio Tetragon è stata fissata l'immagine \nolinkurl{quay.io/cilium/tetragon:v1.7.0}, anch'essa con esecuzione privilegiata e namespace host (PID, cgroup e rete). Il mount di \texttt{/sys/kernel/btf/vmlinux} abilita l'uso delle informazioni BTF del kernel, mentre la directory \texttt{tetragon-policies} contiene le policy di tracing/enforcement caricate a runtime. Anche in questo caso l'export eventi avviene su file JSON (\texttt{tetragon\_events.json}), con allowlist iniziale focalizzata su \texttt{PROCESS\_KPROBE}, \texttt{PROCESS\_TRACEPOINT} e \texttt{PROCESS\_LSM}.
+
+I mount e i privilegi adottati in entrambi i servizi seguono le indicazioni operative riportate nella documentazione ufficiale dei progetti, adattate al perimetro sperimentale di questa tesi \cite{falco-docs,tetragon-docs}.
 
 Entrambi i servizi scrivono i log in directory condivise del progetto (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing. La normalizzazione dei timestamp e dei campi evento viene gestita nella pipeline di analisi descritta nella sezione successiva.
 

@@ -10,7 +10,7 @@ services:
       - /proc:/host/proc:ro
       - /etc:/host/etc:ro
       - /sys/kernel/tracing:/sys/kernel/tracing:ro
-      - ./logs:/var/log/falco # Output da estrarre
+      - ./logs:/var/log/falco
     command: >
       /usr/bin/falco 
       -o json_output=true 
@@ -27,7 +27,7 @@ services:
     network_mode: "host"
     volumes:
       - /sys/kernel/btf/vmlinux:/var/lib/tetragon/btf
-      - ./logs:/var/log/tetragon # Output da estrarre
+      - ./logs:/var/log/tetragon
       - ./tetragon-policies:/etc/tetragon/tetragon.tp.d
     command: >
       /usr/bin/tetragon 
