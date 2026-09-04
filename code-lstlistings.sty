@@ -7,7 +7,7 @@
 
 \crefname{lstlisting}{listing}{listing}	
 \Crefname{lstlisting}{Listing}{Listing}
-\renewcommand\lstlistlistingname{List of Listings}
+\renewcommand\lstlistlistingname{Elenco dei listati}
 
 \lstset{
 	showstringspaces=false,
@@ -61,4 +61,28 @@
 				{>}{{\textcolor{red}\textgreater}}1     
 				{|}{{\textcolor{red}\textbar}}1 
 				{\ -\ }{{\mdseries\ -\ }}3,
+}
+
+\lstdefinelanguage{docker}{
+  keywords={FROM, RUN, COPY, ADD, ENTRYPOINT, CMD,  ENV, ARG, WORKDIR, EXPOSE, LABEL, USER, VOLUME, STOPSIGNAL, ONBUILD, MAINTAINER, HEALTHCHECK, AS},
+  keywordstyle=\color{blue}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{\#},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstdefinelanguage{docker-compose}{
+  keywords={image, environment, ports, container_name, ports, volumes, links, services, command, privileged, pid, network_mode, cgroup},
+  keywordstyle=\color{blue}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=false,
+  comment=[l]{\#},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
 }
