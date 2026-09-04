@@ -354,7 +354,7 @@ La motivazione sperimentale nasce da tre esigenze. Primo, verificare la capacita
 Gli scenari di test considerano classi di vulnerabilita e tecniche offensive realistiche per ambienti cloud-native, tra cui:
 \begin{itemize}
     \item \textbf{Privilege escalation e abuso di capability:} tentativi di esecuzione con privilegi non attesi, uso anomalo di namespace/capability, process injection.
-    \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di secret, token di servizio, file di configurazione critici e mount dell'host.
+    \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di secret, token di servizio e file di configurazione critici.
     \item \textbf{Command execution e living-off-the-land:} avvio di shell inattese, chain di comandi sospetti, utilizzo di binari legittimi per finalita malevole.
     \item \textbf{Comportamenti di evasione e overload:} burst di eventi, flood di syscall e pattern rumorosi volti a ridurre la qualita del segnale o a causare perdita di eventi.
 \end{itemize}
@@ -375,13 +375,13 @@ Dal punto di vista metodologico, uno degli obiettivi centrali è la costruzione 
 
 \noindent che misura l'affidabilita delle allerte generate e il loro impatto sul carico di notifica/triage.
 
-Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di robustezza, tempestivita e costo infrastrutturale:
+Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di tempestivita e costo infrastrutturale:
 
-\[
-\text{Event Loss Rate} = \frac{\text{Eventi}_{\text{Inviati}} - \text{Eventi}_{\text{Intercettati}}}{\text{Eventi}_{\text{Inviati}}} \times 100
-\]
+% \[
+% \text{Event Loss Rate} = \frac{\text{Eventi}_{\text{Inviati}} - \text{Eventi}_{\text{Intercettati}}}{\text{Eventi}_{\text{Inviati}}} \times 100
+% \]
 
-\noindent utile a valutare la resilienza del ring buffer eBPF sotto alto carico di IOPS/syscall.
+% \noindent utile a valutare la resilienza del ring buffer eBPF sotto alto carico di IOPS/syscall.
 
 \[
 \text{Detection Latency} \; (ms)
@@ -389,11 +389,11 @@ Accanto alle metriche derivate dalla matrice di confusione, il framework include
 
 \noindent definita come intervallo temporale tra esecuzione del payload e scrittura del log/evento.
 
-\[
-\text{Enforcement Time Difference} \; (ms)
-\]
+% \[
+% \text{Enforcement Time Difference} \; (ms)
+% \]
 
-\noindent definita come differenza tra il tempo di blocco kernel-side di Tetragon e il tempo di mitigazione ottenuto con catena di alerting/webhook in Falco.
+% \noindent definita come differenza tra il tempo di blocco kernel-side di Tetragon e il tempo di mitigazione ottenuto con catena di alerting/webhook in Falco.
 
 \[
 \text{Resource Overhead} = \{\text{CPU }(\%),\; \text{RAM }(MB)\}
@@ -405,8 +405,17 @@ In sintesi, questa sezione definisce gli obiettivi del programma di validazione:
 
 \section{Configurazione dell'ambiente di test}
 
-L'ambiente sperimentale è stato predisposto in una \ac{vm} Linux dedicata, con kernel Linux \texttt{7.0.0-29-generic} (Ubuntu SMP \texttt{PREEMPT\_DYNAMIC}, architettura \texttt{x86\_64}).
-La scelta di eseguire i test in \ac{vm} consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
+L'ambiente sperimentale è stato predisposto in una \ac{vm} dedicata con le seguenti caratteristiche (riportate a titolo di documentazione e riproducibilita):
+\begin{itemize}
+    \item Hypervisor: VirtualBox 7.2.2;
+    \item Sistema operativo: Ubuntu 26.04.1 LTS;
+    \item Kernel: Linux 7.0.0-29-generic;
+    \item Architettura: x86\_64;
+    \item CPU: 4 vCPU 3.0 GHz;
+    \item RAM: 16 GB DDR4;
+\end{itemize}
+
+La scelta di eseguire i test in una \ac{vm} consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
 
 Per il deployment è stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
 \begin{itemize}
@@ -415,7 +424,7 @@ Per il deployment è stata adottata una configurazione Docker Compose con due se
     \item riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
 \end{itemize}
 
-La configurazione utilizzata è riportata nel \Cref{lst:compose-falco-tetragon}.
+Una versione ridotta della configurazione utilizzata è riportata nel \Cref{lst:compose-falco-tetragon}.
 
 \lstinputlisting[
     language=yaml,
@@ -423,17 +432,42 @@ La configurazione utilizzata è riportata nel \Cref{lst:compose-falco-tetragon}.
     label={lst:compose-falco-tetragon}
 ]{listings/docker-compose.yaml}
 
-Nel servizio Falco è stata fissata l'immagine \nolinkurl{falcosecurity/falco:0.44.1}, con esecuzione privilegiata, \texttt{pid: host} e \texttt{network\_mode: host}. I mount verso \texttt{/proc}, \texttt{/etc}, \texttt{/var/run/docker.sock} e \texttt{/sys/kernel/tracing} forniscono il contesto necessario alla raccolta eventi runtime. L'output è serializzato in JSON su file (\texttt{falco\_events.json}) per consentire parsing offline e calcolo uniforme delle metriche.
+Come si può osservare, entrambi i servizi sono eseguiti con privilegi elevati e mount di namespace host (PID, cgroup e rete). Questo è necessario per consentire l'accesso agli hook del kernel e alle informazioni di contesto dei container.
 
-Nel servizio Tetragon è stata fissata l'immagine \nolinkurl{quay.io/cilium/tetragon:v1.7.0}, anch'essa con esecuzione privilegiata e namespace host (PID, cgroup e rete). Il mount di \texttt{/sys/kernel/btf/vmlinux} abilita l'uso delle informazioni BTF del kernel, mentre la directory \texttt{tetragon-policies} contiene le policy di tracing/enforcement caricate a runtime. Anche in questo caso l'export eventi avviene su file JSON (\texttt{tetragon\_events.json}), con allowlist iniziale focalizzata su \texttt{PROCESS\_KPROBE}, \texttt{PROCESS\_TRACEPOINT} e \texttt{PROCESS\_LSM}.
+Inoltre, sia Falco che Tetragon scrivono i propri log in formato JSON nella directory (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing (vedi \Cref{sec:testing-program-design}). 
+La scelta di un formato strutturato facilita la normalizzazione dei campi, riducendo il rischio di errori di parsing o interpretazione.
 
-I mount e i privilegi adottati in entrambi i servizi seguono le indicazioni operative riportate nella documentazione ufficiale dei progetti, adattate al perimetro sperimentale di questa tesi \cite{falco-docs,tetragon-docs}.
+Inoltre, nel servizio Tetragon è stato montata la directory \texttt{tetragon-policies} contenente le policy di tracing/enforcement da caricare a runtime. Questo consente di modificare le regole senza dover ricostruire l'immagine del container, aumentando la flessibilità della sperimentazione.
 
-Entrambi i servizi scrivono i log in directory condivise del progetto (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing. La normalizzazione dei timestamp e dei campi evento viene gestita nella pipeline di analisi descritta nella sezione successiva.
+Infine, si precisa che i mount e i privilegi adottati in entrambi i servizi seguono le indicazioni operative riportate nella documentazione ufficiale dei due strumenti, adattate al perimetro sperimentale di questa tesi \cite{falco-docs-install,tetragon-docs-install}.
 
 Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalla policy attiva. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto empirico robusto tra i due strumenti nelle medesime condizioni operative.
 
 \section{Progettazione del programma di testing automatizzato}
+\label{sec:testing-program-design}
+
+Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
+
+La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}. Il diagramma evidenzia il ruolo di \texttt{main} come coordinatore e mostra il ciclo ripetuto per ciascun test ancora da eseguire. Prima dell'avvio del ciclo, il programma invoca \texttt{load\_tests(file)} sul modulo \texttt{TestLoader}, che legge il file JSON specificato dall'utente e converte ogni elemento in un oggetto \texttt{Test}. Questa rappresentazione uniforma i parametri necessari all'esecuzione, tra cui identificativo, comando, tipo di test, immagine del container ed eventuale uso di una shell.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/sequenceUML.pdf}
+    \caption{Sequenza di esecuzione del programma di testing automatizzato.}
+    \label{fig:testing-sequence}
+\end{figure}
+
+Dopo il caricamento della suite, il \texttt{main} inizializza il \texttt{TestRunner}, il \texttt{TelemetryCollector} e il \texttt{PerformanceMonitor}. Il collector viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo della prova, nome della regola e contenuto originale dell'evento.
+
+L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus. Successivamente il monitor delle prestazioni avvia un thread che, a intervalli regolari, interroga Docker per ottenere le statistiche dei container \texttt{falco\_monitor} e \texttt{tetragon\_monitor}. In particolare, vengono raccolti l'utilizzo della CPU e la memoria allocata; al termine del test tali campioni sono aggregati calcolando la CPU media e il valore massimo della memoria osservata. La lettura dei contatori prima e dopo l'esecuzione permette inoltre di associare a ciascun test la variazione dei drop rilevati da Falco e Tetragon.
+
+Il \texttt{TestRunner} crea quindi un container a partire dall'immagine indicata nella definizione del test. Se richiesto dal campo \texttt{shell\_wrap}, il comando viene eseguito attraverso \texttt{/bin/sh -c}; in caso contrario viene passato direttamente al container. L'istante di avvio viene ricavato dagli attributi Docker e convertito in un timestamp con fuso orario UTC. Il runner attende la terminazione del container, ne misura la durata complessiva e lo rimuove al termine, così da mantenere l'isolamento tra esecuzioni successive. L'identificativo abbreviato del container costituisce la chiave di correlazione tra il test eseguito e gli eventi prodotti dai due strumenti.
+
+Una volta terminata l'esecuzione, il programma lascia trascorrere una breve finestra temporale per consentire ai collector di acquisire gli eventi generati e poi arresta il monitor delle prestazioni. Gli eventi presenti nella raccolta vengono filtrati confrontando il loro identificativo del container con quello restituito dal runner. Il risultato viene quindi memorizzato come oggetto \texttt{TestResult}, che combina i dati descrittivi del test, l'istante di esecuzione, la durata, gli eventi associati, le statistiche di prestazione e i delta dei contatori di perdita. Il ciclo prosegue fino all'esaurimento della suite o alla ricezione di un segnale di interruzione, che attiva l'arresto ordinato del collector e impedisce l'avvio di ulteriori test.
+
+Al termine della campagna, il collector viene fermato e l'insieme dei risultati viene passato al modulo \texttt{Evaluator}. Per ciascun tool, l'evaluator considera rilevato un test quando è presente almeno un evento della sorgente corrispondente. Il confronto con il tipo dichiarato nel test consente di aggiornare la matrice di confusione e di calcolare recall, precisione e latenza media di rilevazione. La latenza è ottenuta come differenza tra il timestamp del primo evento associato e l'istante di avvio del container; gli eventi privi di una differenza temporale positiva non contribuiscono alla media.
+
+Infine, il modulo \texttt{Exporter} serializza in formato CSV sia i dati relativi ai singoli test sia le metriche aggregate. Il primo blocco del file contiene durata, rilevamento da parte di ciascuno strumento, consumo di risorse e perdita di eventi; il secondo riporta i valori TP, FP, TN, FN, recall, precisione e latenza media. La separazione tra dati grezzi e metriche aggregate conserva la possibilità di effettuare analisi successive senza ripetere necessariamente la campagna sperimentale.
 
 %----------------------------------------------------------------------------------------
 
