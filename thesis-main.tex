@@ -446,7 +446,22 @@ Dal punto di vista metodologico, questa configurazione privilegia la riproducibi
 \section{Progettazione del programma di testing automatizzato}
 \label{sec:testing-program-design}
 
-Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
+La progettazione della suite precede l'esecuzione automatizzata e ne definisce il significato sperimentale. Per questo motivo i test sono stati organizzati in tre gruppi: scenari generici costruiti per verificare le policy definite nell'ambiente, test Atomic Red Team selezionati per la loro associazione a tecniche MITRE ATT\&CK e scenari di carico destinati a valutare il comportamento della telemetria in condizioni di stress. Questa distinzione permette di non confondere la capacità di riconoscere una tecnica avversaria con la capacità, altrettanto importante, di mantenere continuità e qualità della raccolta sotto carico.
+
+\subsection{Selezione degli scenari di test}
+\label{sec:test-selection}
+
+Gli scenari generici sono stati scelti per coprire le operazioni direttamente osservabili dalle policy di Falco e Tetragon. Il gruppo comprende l'avvio di una shell, l'esecuzione di un binario da una directory temporanea, la modifica di \texttt{/etc/shadow}, l'accesso a file sensibili, una connessione verso un indirizzo esterno e l'uso di un nome di processo fuorviante. Sono inoltre presenti test di discovery relativi all'ambiente Docker e alle informazioni del cgroup, insieme a casi benigni che producono attività realistiche, quali il riavvio di un servizio web, una richiesta HTTPS, il salvataggio di Redis e la copia compressa di \texttt{/etc}. I casi benigni costituiscono il riferimento per la stima dei falsi positivi e impediscono di valutare la detection esclusivamente su attività malevole.
+
+Per aumentare la riproducibilità e la confrontabilità degli scenari offensivi, una parte della suite utilizza Atomic Red Team. Il progetto fornisce test atomici, cioè procedure focalizzate e relativamente contenute, associate a tecniche e sottotecniche del catalogo MITRE ATT\&CK \cite{atomic-red-team,mitre-attack}. Nel programma, il binario \texttt{goart} esegue il test selezionato mediante la coppia di parametri \texttt{-t} e \texttt{-i}; in questo modo l'azione concreta è descritta nella configurazione JSON, mentre l'implementazione del payload rimane nel progetto Atomic Red Team. La suite include, tra gli altri, test per il masquerading di un processo, l'accesso a \texttt{/etc/passwd} e \texttt{/etc/shadow}, la raccolta di informazioni sul sistema, la verifica dell'hostname, l'ispezione dei moduli del kernel e il recupero di informazioni geografiche tramite servizi esterni.
+
+La coerenza con MITRE ATT\&CK viene mantenuta a livello di tecnica dichiarata dal test, senza assumere che l'identificativo ATT\&CK implichi automaticamente una detection corretta da parte degli strumenti. Ad esempio, l'accesso a \texttt{/etc/passwd} e \texttt{/etc/shadow} è riferito a \texttt{T1003.008} (OS Credential Dumping: /etc/passwd and /etc/shadow), il masquerading del processo a \texttt{T1036.003} (Masquerading: Rename System Utilities), la raccolta delle informazioni sul sistema a \texttt{T1082} (System Information Discovery) e la ricerca della posizione tramite rete a \texttt{T1614} (System Location Discovery). L'identificativo della tecnica viene quindi usato come metadato metodologico per descrivere lo scenario e organizzare i risultati, non come criterio per dichiarare a priori che un evento sia stato rilevato.
+
+Non tutti i test hanno una corrispondenza uno-a-uno con una tecnica ATT\&CK. L'esecuzione da \texttt{/tmp}, la scoperta di \texttt{/.dockerenv} e la lettura di \texttt{/proc/1/cgroup} sono stati mantenuti perché verificano proprietà specifiche dell'ambiente containerizzato e delle policy sperimentali. Analogamente, i test di stress, basati su \texttt{stress-ng}, non rappresentano una tecnica avversaria isolata: servono a produrre un volume elevato di exec, open, I/O e allocazioni di memoria, così da misurare perdite di eventi e overhead. Questa separazione evita di usare ATT\&CK come una tassonomia universale per fenomeni che appartengono invece alla validazione infrastrutturale.
+
+Ogni elemento della suite è descritto da un record JSON contenente identificativo, nome, categoria, tipo, comando, immagine del container e indicazione sull'eventuale shell wrapper. Le campagne possono quindi essere composte selezionando file diversi: la suite generica, quella Atomic Red Team, quella di stress oppure il file completo che combina i gruppi. L'immagine del container è parte del test perché determina dipendenze e contesto di esecuzione; per i test Atomic Red Team, ad esempio, viene usata un'immagine costruita appositamente con \texttt{goart} e le dipendenze necessarie.
+
+Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di questi scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
 
 La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}. Il diagramma evidenzia il ruolo di \texttt{main} come coordinatore e mostra il ciclo ripetuto per ciascun test ancora da eseguire. Prima dell'avvio del ciclo, il programma invoca \texttt{load\_tests(file)} sul modulo \texttt{TestLoader}, che legge il file JSON specificato dall'utente e converte ogni elemento in un oggetto \texttt{Test}. Questa rappresentazione uniforma i parametri necessari all'esecuzione, tra cui identificativo, comando, tipo di test, immagine del container ed eventuale uso di una shell.
 
@@ -480,8 +495,8 @@ Infine, il modulo \texttt{Exporter} serializza in formato CSV sia i dati relativ
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Osservabilità: Integrazione con Grafana, Prometheus}
-\label{chap:observability}
+% \chapter{Osservabilità: Integrazione con Grafana, Prometheus}
+% \label{chap:observability}
 % SOLO SE AVANZA TEMPO
 % Integrazione con Grafana, Prometheus
 
