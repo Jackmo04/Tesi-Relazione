@@ -20,4 +20,4 @@ spec:
     - matchPIDs:
         - isNamespacePID: true
           operator: "NotIn"
-          values: [0] # Filter out host
+          values: [0]
