@@ -433,8 +433,12 @@ Una versione ridotta della configurazione utilizzata è riportata nel \Cref{lst:
 
 Come si può osservare, entrambi i servizi sono eseguiti con privilegi elevati e mount di namespace host (PID, cgroup e rete). Questo è necessario per consentire l'accesso agli hook del kernel e alle informazioni di contesto dei container.
 
+I due servizi sono stati mantenuti attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento. La raccolta simultanea è possibile perché i programmi eBPF possono essere agganciati contemporaneamente ai relativi hook del kernel e il sottosistema gestisce l'esecuzione concorrente dei programmi associati agli eventi. Nel perimetro di questa valutazione Tetragon è stato utilizzato in modalità osservativa: non sono state configurate azioni di enforcement che terminassero i processi o modificassero il comportamento dei test. In questo modo entrambi gli strumenti osservano gli stessi workload senza che Tetragon alteri il campione sperimentale o impedisca a Falco di ricevere gli eventi successivi.
+
 Inoltre, sia Falco che Tetragon scrivono i propri log in formato JSON nella directory (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing (vedi \Cref{sec:testing-program-design}). 
 La scelta di un formato strutturato facilita la normalizzazione dei campi, riducendo il rischio di errori di parsing o interpretazione.
+
+Nel comando di avvio di Tetragon è inoltre presente l'opzione \texttt{--export-allowlist}. Essa limita gli eventi inoltrati all'exporter ai soli tipi \texttt{PROCESS\_KPROBE}, \texttt{PROCESS\_TRACEPOINT} e \texttt{PROCESS\_LSM}. L'allowlist non disattiva gli hook né modifica le policy caricate: agisce sul flusso di eventi esportati verso il file di log. La sua funzione, in questo esperimento, è rendere il confronto più omogeneo con Falco, che produce un alert quando una regola di detection viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
 
 Inoltre, nel servizio Tetragon è stato montata la directory \texttt{tetragon-policies} contenente le policy di tracing/enforcement da caricare a runtime. Questo consente di modificare le regole senza dover ricostruire l'immagine del container, aumentando la flessibilità della sperimentazione.
 
@@ -468,6 +472,38 @@ Il \texttt{Dockerfile.art} implementa una costruzione multi-stage. Nel primo sta
     label={lst:dockerfile-art}
 ]{listings/Dockerfile.art}
 
+Per rendere concreto il contenuto della suite, il \Cref{lst:test-examples} riporta alcuni esempi rappresentativi. Gli scenari comprendono un'attività di evasione tramite link simbolico, una connessione verso un indirizzo esterno, la discovery dell'ambiente Docker, un caso benigno di comunicazione HTTPS, un test Atomic Red Team e un test di stress. Il listing mostra anche che lo stesso formato descrive test con immagini diverse e con o senza esecuzione tramite shell; il caricatore può quindi trattare in modo uniforme attività sperimentali eterogenee.
+
+\lstinputlisting[
+    % language=json,
+    caption={Esempi di test utilizzati nella campagna sperimentale.},
+    label={lst:test-examples}
+]{listings/test-examples.json}
+
+\subsection{Isolamento dei test e correlazione degli eventi}
+\label{sec:test-isolation-correlation}
+
+Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato prima dell'avvio e rimosso al termine. Questa scelta impedisce che file creati, processi residui, modifiche al filesystem o altri effetti collaterali di un test influenzino quello successivo. L'isolamento è particolarmente importante quando una campagna alterna test malevoli, casi benigni e workload di stress: senza una nuova istanza, un processo lasciato attivo o un artefatto temporaneo potrebbe produrre eventi attribuiti al test sbagliato.
+
+Il container usa-e-getta semplifica inoltre la correlazione tra azione eseguita ed eventi osservati. Al momento della creazione, Docker assegna un identificativo univoco; il runner conserva l'identificativo abbreviato e lo associa al risultato del test. Falco riporta l'identificativo del container nei campi di contesto dell'evento, mentre Tetragon lo espone nei dati relativi al processo. Il collector normalizza entrambi i valori allo stesso formato e il programma seleziona gli eventi il cui identificativo coincide con quello restituito dal runner. In questo modo il criterio di appartenenza è indipendente dal nome del processo, dal comando concreto o dall'ordine di arrivo dei log.
+
+Sono state considerate anche strategie alternative, come l'associazione basata sul comando eseguito, sul nome dell'immagine, sul timestamp o sull'identificativo del processo. Questi criteri sono meno robusti nel contesto adottato: lo stesso comando può generare più processi, un'immagine può essere riutilizzata da test diversi, i timestamp dei log possono differire per precisione e un PID può essere riutilizzato dopo la terminazione del processo. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria. L'uso dell'identificativo abbreviato è sufficiente nel contesto Docker della sperimentazione, poiché il prefisso utilizzato mantiene l'univocità tra container contemporanei.
+
+\subsection{Definizione delle TracingPolicy}
+\label{sec:tracing-policy-design}
+
+Le TracingPolicy di Tetragon sono state definite partendo dagli eventi che si intendeva verificare nella suite e non dalla semplice enumerazione di tutte le syscall disponibili. Il criterio di progettazione è stato mantenere un numero contenuto di hook e condizioni specifiche, così da limitare i falsi positivi e il volume di telemetria, evitando al tempo stesso punti ciechi rispetto agli scenari scelti. Le policy usate nel test sono quindi mirate a operazioni osservabili e interpretabili, come l'esecuzione di shell, la scrittura in directory sensibili, la modifica delle capability, le connessioni TCP e l'esecuzione da percorsi temporanei.
+
+Un esempio è la policy per l'esecuzione di shell riportata nel \Cref{lst:shell-execution-policy}. La policy si aggancia alla chiamata \texttt{sys\_execve}, considera come argomento il percorso del programma e seleziona i soli casi in cui il binario eseguito è \texttt{/bin/bash}, \texttt{/bin/sh} o \texttt{/bin/dash}. Il filtro sui PID esclude inoltre il processo host, riducendo eventi non pertinenti al workload osservato. La granularità sui percorsi consente di distinguere l'avvio di una shell, considerato anomalo nello scenario, dall'esecuzione ordinaria di altri programmi.
+
+\lstinputlisting[
+    language=yaml,
+    caption={TracingPolicy per la rilevazione dell'esecuzione di shell.},
+    label={lst:shell-execution-policy}
+]{listings/shell-execution.yaml}
+
+Questa impostazione comporta un compromesso: una policy più selettiva riduce il rumore ma può non osservare varianti non incluse nei selettori, mentre una policy più ampia aumenta la copertura al costo di più eventi e potenziali falsi positivi. La valutazione sperimentale mantiene quindi separate la scelta della policy e la misura della detection: un test è considerato rilevato solo quando la telemetria prodotta soddisfa il criterio di correlazione, non semplicemente perché esiste una policy teoricamente compatibile.
+
 Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di questi scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
 
 La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}. Il diagramma evidenzia il ruolo di \texttt{main} come coordinatore e mostra il ciclo ripetuto per ciascun test ancora da eseguire. Prima dell'avvio del ciclo, il programma invoca \texttt{load\_tests(file)} sul modulo \texttt{TestLoader}, che legge il file JSON specificato dall'utente e converte ogni elemento in un oggetto \texttt{Test}. Questa rappresentazione uniforma i parametri necessari all'esecuzione, tra cui identificativo, comando, tipo di test, immagine del container ed eventuale uso di una shell.
@@ -481,7 +517,17 @@ La sequenza complessiva delle interazioni tra i componenti è riportata nella \C
 
 Dopo il caricamento della suite, il \texttt{main} inizializza il \texttt{TestRunner}, il \texttt{TelemetryCollector} e il \texttt{PerformanceMonitor}. Il collector viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo della prova, nome della regola e contenuto originale dell'evento.
 
-L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus. Successivamente il monitor delle prestazioni avvia un thread che, a intervalli regolari, interroga Docker per ottenere le statistiche dei container \texttt{falco\_monitor} e \texttt{tetragon\_monitor}. In particolare, vengono raccolti l'utilizzo della CPU e la memoria allocata; al termine del test tali campioni sono aggregati calcolando la CPU media e il valore massimo della memoria osservata. La lettura dei contatori prima e dopo l'esecuzione permette inoltre di associare a ciascun test la variazione dei drop rilevati da Falco e Tetragon.
+L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP \texttt{/api/v1/query} dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total}. Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi \cite{prometheus-querying}.
+
+Il meccanismo è illustrato nel \Cref{lst:drop-metrics}. In caso di risposta vuota, errore HTTP o indisponibilità temporanea di Prometheus, il metodo restituisce zero; questa scelta evita di interrompere la campagna, ma rende necessario interpretare lo zero come "nessun drop osservato o metrica non disponibile" quando si analizzano i risultati.
+
+\lstinputlisting[
+    language=python,
+    caption={Interrogazione di Prometheus per i contatori degli eventi persi.},
+    label={lst:drop-metrics}
+]{listings/metrics.py}
+
+Successivamente il monitor delle prestazioni avvia un thread che, a intervalli regolari, interroga Docker per ottenere le statistiche dei container \texttt{falco\_monitor} e \texttt{tetragon\_monitor}. In particolare, vengono raccolti l'utilizzo della CPU e la memoria allocata; al termine del test tali campioni sono aggregati calcolando la CPU media e il valore massimo della memoria osservata. La lettura dei contatori prima e dopo l'esecuzione permette inoltre di associare a ciascun test la variazione dei drop rilevati da Falco e Tetragon.
 
 Il \texttt{TestRunner} crea quindi un container a partire dall'immagine indicata nella definizione del test. Se richiesto dal campo \texttt{shell\_wrap}, il comando viene eseguito attraverso \texttt{/bin/sh -c}; in caso contrario viene passato direttamente al container. L'istante di avvio viene ricavato dagli attributi Docker e convertito in un timestamp con fuso orario UTC. Il runner attende la terminazione del container, ne misura la durata complessiva e lo rimuove al termine, così da mantenere l'isolamento tra esecuzioni successive. L'identificativo abbreviato del container costituisce la chiave di correlazione tra il test eseguito e gli eventi prodotti dai due strumenti.
 
