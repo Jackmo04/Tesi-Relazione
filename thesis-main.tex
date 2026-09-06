@@ -114,10 +114,10 @@ Un problema centrale è la perdita di visibilità tra il livello applicativo e i
 
 In particolare, l'osservabilità a livello runtime richiede strumenti in grado di collegare eventi di alto livello, come richieste di rete, creazione di processi o accesso a file sensibili, con le entità del cluster, come pod, container, namespace e service account. Le soluzioni tradizionali in user-space possono fornire contesto utile, ma soffrono del fatto che molte operazioni critiche avvengono direttamente nel kernel.
 
-% forse rimuovere/spostare questo paragrafo
+% forse rimuovere/spostare questo paragrafo, oppure invertire le sezioni
 L'uso di eBPF ha reso possibile un nuovo modello di sicurezza runtime per i sistemi cloud-native: grazie alla sua collocazione nel kernel, è possibile osservare eventi di sistema con maggiore granularità e ridurre il costo di trasferimento dei dati verso user-space. Questo sposta il problema da una semplice raccolta di log a una capacità più fine di correlare comportamenti e applicare controlli in tempo reale.
 
-Dal punto di vista operativo, una strategia completa di sicurezza cloud-native deve combinare controlli preventivi, come image scanning, admission control e least-privilege, con strumenti di detection e response runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. Strumenti come Falco e Tetragon rappresentano due approcci complementari a questa sfida: Falco è orientato principalmente al rilevamento e all'integrazione con workflow di alerting e risposta, mentre Tetragon sfrutta eBPF per offrire osservabilità profonda e possibili azioni di enforcement a livello kernel.
+Dal punto di vista operativo, una strategia completa di sicurezza cloud-native deve combinare controlli preventivi, come image scanning, admission control e least-privilege, con strumenti di detection e response runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. Nell'ambito di questa tesi, l'attenzione è posta sulla parte di runtime security, esplorando come strumenti basati su eBPF possano integrare o sostituire approcci tradizionali in user-space, con un focus specifico su Falco e Tetragon.
 
 \section{Fondamenti di eBPF}
 \label{sec:eBPF-fundamentals}
@@ -127,7 +127,7 @@ Dal punto di vista architetturale, un programma \ac{ebpf} viene caricato in risp
 
 La sicurezza del sistema è garantita dal Verifier, un componente del kernel che analizza il programma prima dell'esecuzione per verificarne la terminazione, l'assenza di loop non controllati e l'accesso corretto alle risorse. Questa architettura rende \ac{ebpf} particolarmente adatto a scenari in cui è necessario ottenere visibilità fine-grained sul comportamento del sistema senza il costo di agenti user-space tradizionali. La presenza di mappe condivise, helper stabili e compilazione JIT (Just-In-Time) consente di costruire pipeline di telemetria efficienti, mentre l'aggancio a hook diversi permette di intercettare eventi a livelli di astrazione differenti, dalle syscall ai punti di tracing più specifici \cite{ebpf-docs}.
 
-L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture}, che mostra in modo sintetico il percorso di un programma eBPF: il codice sorgente viene compilato in bytecode, poi caricato nel kernel assieme alle mappe, verificato dal Verifier e compilato in codice macchina dal JIT Compiler. A questo punto, il programma può reagire agli eventi del kernel, aggiornare le mappe e comunicare con user-space. % TODO: da ricontrollare
+L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture}, che mostra in modo sintetico il percorso di un programma eBPF: il codice sorgente viene compilato in bytecode, poi caricato nel kernel assieme alle mappe, verificato dal Verifier e infine compilato in codice macchina dal JIT Compiler. A questo punto, il programma può reagire agli eventi del kernel, aggiornare le mappe e comunicare con user-space. % TODO: da ricontrollare
 
 \begin{figure}
     \centering
@@ -136,7 +136,7 @@ L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture},
     \label{fig:ebpf-architecture}
 \end{figure}
 
-In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilità e controllo perché riduce il numero di copie dei dati e concentra la logica di raccolta vicino alla sorgente dell'evento. Questo non elimina la complessità operativa, ma sposta il problema dalla lettura passiva dei log alla progettazione di regole e filtri sufficientemente espressivi da distinguere attività legittime da comportamenti sospetti.
+In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilità e controllo poiché riduce il numero di copie dei dati e concentra la logica di raccolta vicino alla sorgente dell'evento. Questo non elimina la complessità operativa, ma sposta il problema dalla lettura passiva dei log alla progettazione di regole e filtri sufficientemente espressivi da distinguere attività legittime da comportamenti sospetti.
 
 %----------------------------------------------------------------------------------------
 
