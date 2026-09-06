@@ -173,7 +173,7 @@ Questa progettazione presenta vantaggi chiari in termini di semplicità operativ
 \label{sec:tetragon}
 
 \subsection{Che cos'è Tetragon}
-Tetragon è un progetto di Cilium dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
+Tetragon è un progetto di Cilium\footnote{Cilium è un progetto open source per networking e sicurezza in ambienti cloud-native \cite{cilium}.} dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
 
 In un ambiente cloud-native, dove i workload sono effimeri, distribuiti e spesso condividono lo stesso kernel dell'host, l'enforcement a basso livello è molto rilevante. Tetragon osserva processi, syscall, file, rete e contesto di esecuzione del workload, correlandoli con le informazioni Kubernetes e con l'identità del pod. Quando una policy viene violata, il sistema non si limita a produrre un avviso: può generare un'azione di mitigazione immediata, ad esempio interrompendo un processo o bloccando un'operazione prima che compia un effetto significativo.
 
@@ -229,7 +229,6 @@ In sintesi, Falco è adatto quando il requisito dominante è aumentare visibilit
 Tetragon è preferibile nei casi in cui, oltre alla visibilità, sia richiesta una riduzione della finestra di rischio attraverso enforcement tempestivo e filtraggio vicino alla sorgente dell'evento. I casi d'uso specifici sono:
 \begin{itemize}
     \item \textbf{Prevenzione di azioni ad alto impatto:} blocco o terminazione di processi in presenza di condizioni vietate definite da policy.
-    \item \textbf{Runtime policy contestualizzate su Kubernetes:} decisioni basate su identità del workload, namespace o metadati correlati all'esecuzione.
     \item \textbf{Enforcement kernel-first:} applicazione della risposta nel percorso di esecuzione, con l'obiettivo di ridurre la latenza tra rilevazione e mitigazione.
     \item \textbf{Riduzione del rumore di telemetria:} selezione più precisa degli eventi rilevanti prima della consegna a user-space.
 \end{itemize}
@@ -257,14 +256,14 @@ La scelta della modalità di deployment influenza profondamente visibilità, cop
 L'installazione diretta su host è adatta a server singoli, laboratori o ambienti di test dove è necessario controllare in modo fine dipendenze e configurazione.
 \begin{itemize}
     \item \textbf{Falco:} installazione generalmente lineare; consente tuning rapido di regole e output locali.
-    \item \textbf{Tetragon:} possibile su host Linux, ma richiede maggiore attenzione alla compatibilità kernel/BTF e ai privilegi necessari.
+    \item \textbf{Tetragon:} richiede maggiore attenzione alla compatibilità kernel/BTF e ai privilegi necessari.
 \end{itemize}
 
 \subsection{Deployment in container Docker standalone}
 L'esecuzione come container standalone semplifica packaging e distribuzione, ma richiede mount e capability adeguate per osservare il kernel dell'host.
 \begin{itemize}
-    \item \textbf{Falco:} modalità molto diffusa; facilità di avvio rapida, soprattutto per proof-of-concept e ambienti di sviluppo.
-    \item \textbf{Tetragon:} fattibile, ma la configurazione dei privilegi e dei binding kernel-side è in genere più sensibile agli errori.
+    \item \textbf{Falco:} richiede il mount di diversi volumi; l'esecuzione deve avvenire in contesto privilegiato oppure con capability specifiche.
+    \item \textbf{Tetragon:} il container deve privilegiato, avere accesso a BTF e utilizzare PID namespace e Cgroups dell'host.
 \end{itemize}
 
 \subsection{Deployment in Kubernetes}
@@ -274,12 +273,16 @@ In produzione cloud-native, Kubernetes rappresenta lo scenario principale per en
     \item \textbf{Tetragon:} integrazione naturale nell'ecosistema Cilium/Kubernetes; molto efficace quando si vogliono policy runtime contestualizzate e enforcement rapido.
 \end{itemize}
 
-Nei cluster multi-tenant, la fase più delicata non è la sola installazione, ma la definizione progressiva delle policy per limitare falsi positivi e regressioni operative.
-
 \section{Facilità di configurazione: confronto operativo}
 \label{sec:configuration-ease}
 
-La facilità di adozione di uno strumento di runtime security non dipende soltanto dal numero di comandi necessari per avviarlo. È necessario considerare anche i prerequisiti del nodo, la complessità delle policy, il livello di integrazione con l'orchestratore, le attività di tuning e la gestione delle modifiche nel tempo. Le Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation} confrontano Falco e Tetragon secondo questi criteri.
+La facilità di adozione di uno strumento di runtime security non dipende soltanto dal numero di comandi necessari per avviarlo. È necessario considerare anche i prerequisiti del nodo, la complessità delle policy, il livello di integrazione con l'orchestratore, le attività di tuning e la gestione delle modifiche nel tempo. 
+
+Al fine di valutare concretamente i due strumenti, una parte importante di questa tesi è stata rivolta all'installazione, alla configurazione e al tuning di Falco e Tetragon in ambienti Kubernetes. Sono stati considerati diversi scenari, dalla semplice osservazione di eventi a policy più complesse con enforcement, per comprendere le differenze operative e i requisiti di gestione.
+
+Si precisa che in questa sezione Falco e Tetragon vengono confrontati esclusivamente in termini di facilità di installazione, configurazione e gestione operativa, poiché la valutazione delle performance e dell'efficacia delle policy è oggetto del capitolo successivo (\Cref{chap:testing}).
+
+I criteri di confronto considerati e le relative considerazioni per ciascuno strumento sono riportati nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation}.
 
 \begin{table}[htbp]
     \centering
@@ -299,7 +302,7 @@ La facilità di adozione di uno strumento di runtime security non dipende soltan
         \hline
         Modalità di configurazione & File YAML per le regole e la configurazione dell'agente; supporta output e integrazioni verso sistemi esterni. & Risorse Kubernetes YAML, come \textit{TracingPolicy} e \textit{ClusterTracingPolicy}, oltre ai parametri dell'agente e del deployment. \\
         \hline
-        Curva di apprendimento delle policy & Sintassi dichiarativa orientata alla condizione dell'evento e al contesto; è relativamente accessibile a chi conosce monitoring e SIEM. & Richiede familiarità con eventi di processo e syscall, hook eBPF, contesto Kubernetes e distinzione tra osservazione ed enforcement. \\
+        Curva di apprendimento delle policy & Sintassi dichiarativa orientata alla condizione dell'evento e al contesto; nel complesso è relativamente accessibile. & Richiede familiarità con eventi di processo e syscall, hook eBPF, contesto Kubernetes e distinzione tra osservazione ed enforcement. \\
         \hline
     \end{tabularx}
 \end{table}
