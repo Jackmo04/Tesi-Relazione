@@ -5,6 +5,15 @@
 ## Testing
 - Elencare tecniche MITRE ATT&CK usate
 - Falco vince sul contesto semantico, Tetragon sulla velocità e enforcement. Es. per valutare se viene spawnata una shell, Falco può basarsi sulla presenza di una TTY, mentre Tetragon deve basarsi solo sulla syscall execve ed eventualmente filtrare dei falsi positivi.
+- Precisare che bisognerebbe ricreare tutte le policy ti Falco anche su Tetragon per un confronto più accurato
 
 ## Risultati
 - I drop di falco non sono nulla di inaspettato. Falco produce un warning in caso di saturazione del ring-buffer, ma ciò non permette di agire in maniera mirata.
+
+### Prestazioni (medie su 7 run)
+- Falco CPU Avg: 5,62052 %
+- Tetragon CPU Avg: 0,924805 %
+- Falco RAM Max: 113,283 MB
+- Tetragon RAM Max: 147,768 MB
+- Falco Latency Avg: 268,844 ms
+- Tetragon Latency Avg: 254,704 ms

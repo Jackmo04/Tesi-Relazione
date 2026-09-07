@@ -344,9 +344,8 @@ In sintesi, Falco e Tetragon non vanno considerati necessariamente alternativi: 
 
 \chapter{Testing e Validazione}
 \label{chap:testing}
-% Descrizione possibili vulnerabilità e scenari di attacco: Escalation di Privilegio, Accesso a File Sensibili, Esecuzione di Comandi Arbitrari, ecc.
-% Configurazione dell'ambiente di test
-% Progettazione della Suite di Testing Automatizzata
+In questo capitolo viene descritto il programma di testing sviluppato per confrontare in modo quantitativo Falco e Tetragon. L'obiettivo è misurare l'efficacia delle policy, la latenza di rilevazione, la finestra di rischio e l'overhead operativo in scenari realistici di runtime security.
+
 \section{Motivazione e Obiettivi}
 
 Il confronto tra Falco e Tetragon non puo essere limitato a una descrizione architetturale o a un'analisi qualitativa delle funzionalita dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel. Per questo motivo, la tesi introduce un programma di testing automatizzato con due finalita principali: generare scenari riproducibili e misurare in modo quantitativo l'efficacia di detection/enforcement.
@@ -544,19 +543,13 @@ Infine, il modulo \texttt{Exporter} serializza in formato CSV sia i dati relativ
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Risultati e Discussione} % sezioni da definire meglio
+\chapter{Risultati e Discussione}
 \label{chap:results}
 % Rilevazione ed Evasione (Detection & Bypass)
 % Studio dei Falsi Positivi
-% Reattività ed Enforcement (Prevention Test)
-% Meccanismi di Avviso e Automazione della Risposta
+% Studio della Latenza di Rilevazione
+% Studio delle Prestazioni
 
-%----------------------------------------------------------------------------------------
-
-% \chapter{Osservabilità: Integrazione con Grafana, Prometheus}
-% \label{chap:observability}
-% SOLO SE AVANZA TEMPO
-% Integrazione con Grafana, Prometheus
 
 %----------------------------------------------------------------------------------------
 
