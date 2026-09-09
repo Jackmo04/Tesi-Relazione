@@ -642,6 +642,15 @@ Tetragon, invece, filtra gli eventi vicino alla sorgente mediante programmi eBPF
 
 Falco può essere configurato per generare un avviso quando il ring buffer o il meccanismo di acquisizione segnala una saturazione. Tale avviso è utile per rendere esplicita la perdita di visibilità e per attivare una risposta operativa, ma non risolve direttamente il problema: informa che gli eventi sono già stati persi e non identifica necessariamente quali azioni abbiano causato la saturazione. L'alert può quindi supportare il monitoraggio della salute del sistema, ma non consente da solo di applicare un intervento mirato sul workload responsabile, né di ricostruire gli eventi mancanti.
 
+\subsection{Contesto semantico e rapidità di risposta}
+\label{sec:semantic-context}
+
+Il confronto non riguarda soltanto il numero di eventi rilevati, ma anche la quantità di contesto semantico disponibile al momento della decisione. Falco valuta gli eventi nel componente user-space e può utilizzare informazioni arricchite relative al processo e al container. Un esempio è la distinzione tra una shell interattiva e una shell avviata per eseguire un comando: oltre alla chiamata di esecuzione, una regola Falco può considerare la presenza di una TTY e altri attributi del processo per rendere la condizione più specifica.
+
+Nel caso di Tetragon, la policy mostrata nel \Cref{lst:shell-execution-policy} si basa invece sull'hook \texttt{sys\_execve} e sul percorso del binario eseguito. Questa scelta consente di filtrare l'evento molto vicino alla sorgente, ma non esprime automaticamente la stessa semantica di una condizione basata sull'interattività della sessione. Una policy che intercetta \texttt{/bin/bash} o \texttt{/bin/sh} può quindi includere anche esecuzioni non interattive, a meno di ulteriori selettori o di una correlazione successiva che però aumenterebbero di molto la complessità. Il maggiore numero di falsi positivi osservato per Tetragon nella suite è compatibile con questo compromesso, anche se non può essere attribuito a una singola policy o a una singola causa.
+
+In termini generali, Falco dispone di un contesto user-space più ricco per formulare condizioni semanticamente precise, mentre Tetragon privilegia la decisione tempestiva e la possibilità di applicare enforcement nel percorso dell'evento. Il primo approccio facilita il tuning delle eccezioni e la riduzione dei falsi positivi; il secondo riduce la distanza tra osservazione e risposta. Le due proprietà sono complementari e spiegano perché il confronto non possa essere ridotto alla sola metrica di recall.
+
 \section{Discussione complessiva}
 \label{sec:results-discussion}
 
@@ -649,14 +658,25 @@ I risultati mostrano due profili operativi distinti. Falco presenta un consumo d
 
 Non emerge quindi un vincitore indipendente dal requisito. Falco rimane adatto a scenari in cui la generazione di alert, l'integrazione con output user-space e il contenimento della memoria sono prioritari, purché siano monitorate la capacità di elaborazione e la possibile perdita di eventi. Tetragon risulta più efficace quando la priorità è filtrare gli eventi vicino al kernel e mantenere la telemetria sotto carico, accettando un maggiore consumo di memoria e la necessità di un tuning più accurato delle policy per ridurre i falsi positivi. Queste conclusioni sono limitate al perimetro sperimentale e costituiscono la base per discutere, nel capitolo conclusivo, i compromessi tra detection, overhead e robustezza.
 
+Un ulteriore elemento di cautela riguarda la configurazione delle regole. Falco è stato eseguito con il set di regole predefinito, mentre Tetragon non dispone di un insieme equivalente di policy di detection già attivo nel setup utilizzato. Per Tetragon sono state quindi definite alcune TracingPolicy mirate, ispirate ai comportamenti osservabili dalle regole di Falco, ma non è stata realizzata una replica completa dell'intero set di regole Falco. Il confronto misura pertanto il comportamento di due configurazioni sperimentali concrete e non l'efficacia massima teorica dei due strumenti.
+
+I valori di recall, precisione e latenza devono quindi essere considerati indicativi. Un confronto più esteso dovrebbe prevedere il tuning indipendente delle regole Falco e delle policy Tetragon, la definizione di una copertura comune delle tecniche e scenari ripetuti con diverse soglie di selettività. In particolare, il tuning potrebbe aumentare la copertura di Falco o ridurre i falsi positivi di Tetragon, modificando il bilanciamento osservato nella campagna attuale.
+
 
 %----------------------------------------------------------------------------------------
 
 \chapter{Conclusione e sviluppi futuri}
 \label{chap:conclusion}
-% Sintesi dei Risultati: Tabella comparativa finale su Efficacia, Robustezza, Usabilità e Prestazioni.
-% Linee Guida di Scelta: Guida per un Ingegneer/Security Architect su quando adottare Falco, Tetragon o un approccio ibrido.
-% Sviluppi Futuri
+
+Il lavoro ha confrontato Falco e Tetragon in un ambiente Docker controllato, mantenendo attivi entrambi gli strumenti sullo stesso nodo e sottoponendoli a scenari generici, test Atomic Red Team e workload di stress. I risultati mostrano profili complementari. Tetragon ha ottenuto una copertura maggiore nella suite senza stress e ha mantenuto la raccolta durante il test \texttt{STRESS-EXEC}, mentre Falco ha richiesto meno memoria e ha fornito una pipeline di detection basata su un contesto semantico più ricco.
+
+Il principale risultato qualitativo è quindi una distinzione tra contesto e tempestività. L'elaborazione user-space di Falco consente di combinare il segnale della syscall con attributi del processo e del container, come la presenza di una TTY nel caso delle shell interattive. Questo permette di esprimere regole più vicine al significato dell'azione e di ridurre alcune ambiguità. Tetragon opera invece più vicino all'hook del kernel: una policy basata su \texttt{execve} può reagire rapidamente e può essere estesa con azioni di enforcement, ma richiede selettori accurati per evitare che eventi tecnicamente simili vengano trattati nello stesso modo.
+
+La valutazione dell'efficacia deve essere letta considerando la diversa configurazione iniziale. Falco ha utilizzato le regole di default, mentre per Tetragon sono state sviluppate policy mirate che ne replicassero alcuni comportamenti, senza ricostruire tutte le regole Falco. I risultati sono dunque indicativi delle configurazioni adottate e non costituiscono una classifica definitiva degli strumenti. In un'installazione reale, il tuning deve essere svolto sul workload specifico: regole troppo generiche aumentano i falsi positivi, mentre policy troppo selettive possono creare punti ciechi.
+
+La scelta dello strumento dipende quindi dal requisito operativo. Falco è particolarmente adatto quando sono centrali il contesto semantico, l'integrazione con sistemi di alerting e la possibilità di esprimere condizioni ricche in user-space. Tetragon è preferibile quando la priorità è il filtraggio vicino al kernel, la rapidità di risposta e l'eventuale enforcement. Un'architettura ibrida può sfruttare entrambe le proprietà, assegnando a Falco le regole che richiedono correlazione e contesto elevati e a Tetragon le policy per azioni che devono essere osservate o bloccate con bassa latenza.
+
+Tra gli sviluppi futuri rientrano la costruzione di una matrice di copertura comune tra regole Falco e TracingPolicy Tetragon, il tuning sistematico delle soglie e delle eccezioni, la ripetizione delle campagne su più kernel e più workload e l'attivazione controllata dell'enforcement di Tetragon. Sarebbe inoltre utile introdurre una metrica esplicita per la perdita di eventi e distinguere, nella raccolta Prometheus, l'assenza effettiva di drop dall'indisponibilità temporanea della metrica.
 
 \appendix
 \chapter{Dichiarazione sull'uso di strumenti di GenAI}

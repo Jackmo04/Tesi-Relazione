@@ -15,8 +15,9 @@ spec:
         operator: "Equal"
         values:
         - "/bin/bash"
+        - "/usr/bin/bash"
         - "/bin/sh"
-        - "/bin/dash"
+        - "/usr/bin/sh"
     - matchPIDs:
         - isNamespacePID: true
           operator: "NotIn"
