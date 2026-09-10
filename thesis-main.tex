@@ -7,6 +7,7 @@
 \usepackage{acro}
 \usepackage{hyperref}
 \usepackage{tabularx}
+\usepackage{placeins}
 
 \hypersetup{
     colorlinks=true,
@@ -369,6 +370,8 @@ I criteri di confronto considerati e le relative considerazioni per ciascuno str
         \hline
     \end{tabularx}
 \end{table}
+
+\FloatBarrier
 
 Nel complesso, Falco presenta una barriera di ingresso più contenuta quando l'obiettivo iniziale è ottenere visibilità e generare alert. La disponibilità di regole e integrazioni già predisposte facilita l'inserimento in pipeline di monitoring e incident response; rimane tuttavia necessario un periodo di tuning per adattare le regole al comportamento legittimo dei workload.
 
