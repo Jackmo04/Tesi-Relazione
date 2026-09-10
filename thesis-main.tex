@@ -282,6 +282,46 @@ Al fine di valutare concretamente i due strumenti, una parte importante di quest
 
 Si precisa che in questa sezione Falco e Tetragon vengono confrontati esclusivamente in termini di facilità di installazione, configurazione e gestione operativa, poiché la valutazione delle performance e dell'efficacia delle policy è oggetto del capitolo successivo (\Cref{chap:testing}).
 
+\subsection{Definizione delle regole e delle TracingPolicy}
+\label{sec:rules-and-policies}
+
+La configurazione delle regole rappresenta il punto in cui le capacità di osservazione dei due strumenti vengono trasformate in decisioni di sicurezza. In Falco una regola combina generalmente una condizione sugli eventi, un messaggio di output, una priorità e un insieme di tag. La condizione può utilizzare sia il tipo di operazione sia il contesto arricchito del processo e del container. Il \Cref{lst:falco-rules-example} contiene tre regole rappresentative: la rilevazione di una shell interattiva, la scrittura sotto una directory sensibile e l'esecuzione di un binario introdotto nel layer scrivibile del container.
+
+\lstinputlisting[
+    language=yaml,
+    caption={Esempi di regole Falco per shell interattive e scritture in directory sensibili.},
+    label={lst:falco-rules-example}
+]{listings/falco-rules.yaml}
+
+La prima regola combina la creazione di un processo, l'appartenenza a un container, il nome della shell e la presenza di una TTY. Il campo \texttt{proc.tty} permette quindi di distinguere, a livello di regola, una shell interattiva da un processo che utilizza lo stesso interprete per eseguire un comando non interattivo. La seconda regola utilizza invece il campo del file descriptor per limitare la detection alle aperture in scrittura sotto \texttt{/etc/}. La terza usa il campo semantico \texttt{proc.is\_exe\_upper\_layer}: in un container basato su filesystem overlay, il valore è vero quando l'eseguibile proviene dall'upper layer scrivibile del container, cioè da una modifica o da un file aggiunto durante l'esecuzione, e non dai layer immutabili dell'immagine di base. In questo caso Falco può quindi rilevare l'esecuzione di un binario introdotto nel container senza dover dedurre la sua origine soltanto dal percorso. Gli output includono inoltre il contesto utile all'analisi, come utente, container, percorso, comando e priorità dell'alert.
+
+Tetragon esprime intenzioni analoghe attraverso risorse YAML \textit{TracingPolicy}. Una policy specifica l'hook del kernel, gli argomenti da estrarre e i selettori che devono essere soddisfatti. I tre listing seguenti permettono un confronto diretto con le regole Falco: esecuzione di shell, scrittura sotto \texttt{/etc/} ed esecuzione da percorsi scrivibili. Rispetto a una regola Falco, le condizioni Tetragon sono ancorate direttamente a hook del kernel e a specifici argomenti dell'evento.
+
+\lstinputlisting[
+    language=yaml,
+    caption={TracingPolicy Tetragon per l'esecuzione di shell.},
+    label={lst:tetragon-policy-shell-deployment}
+]{listings/shell-execution.yaml}
+
+\lstinputlisting[
+    language=yaml,
+    caption={TracingPolicy Tetragon per l'esecuzione da percorsi scrivibili.},
+    label={lst:tetragon-policy-writable-paths}
+]{listings/execve-in-writable-paths.yaml}
+
+\lstinputlisting[
+    language=yaml,
+    caption={TracingPolicy Tetragon per la scrittura nella directory \texttt{/etc/}.},
+    label={lst:tetragon-policy-etc-write}
+]{listings/etc-write.yaml}
+
+La prima policy si aggancia a \texttt{sys\_execve} e seleziona i programmi il cui percorso inizia con \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} o \texttt{/run/}. Il filtro intercetta quindi l'esecuzione da directory comunemente utilizzate per file temporanei o scrivibili, senza dipendere dal nome del processo. La seconda policy utilizza l'hook \texttt{security\_file\_permission}, acquisisce il file e il tipo di accesso e seleziona le operazioni con flag \texttt{MAY\_WRITE} su percorsi sotto \texttt{/etc/}. L'uso di un hook LSM e del valore di ritorno permette di osservare una fase specifica del controllo dei permessi del filesystem.
+
+Il confronto tra la terza regola Falco e la policy Tetragon per i percorsi scrivibili richiede una precisazione. Falco verifica direttamente l'appartenenza dell'eseguibile all'upper layer dell'overlay filesystem; Tetragon, attraverso \texttt{sys\_execve}, non riceve invece un attributo equivalente che indichi se il file provenga dall'immagine base o dal layer scrivibile. Nel test questa differenza è stata gestita con un'approssimazione basata sui prefissi \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. La policy Tetragon rileva quindi l'esecuzione da directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory. Si tratta di una corrispondenza comportamentale, non di una replica semantica del campo Falco.
+
+Le tre coppie mostrano differenze di espressività. La sintassi Falco è più strutturata e intuitiva per chi deve combinare evento, contesto, output e severità in una regola leggibile. La sintassi Tetragon richiede invece di conoscere l'hook corretto, la firma della syscall o della funzione kernel, gli indici degli argomenti e i tipi supportati dai programmi eBPF. Il caso della shell è il più evidente: Falco verifica direttamente \texttt{proc.tty != 0}, mentre la policy Tetragon basata su \texttt{execve} conosce il percorso del binario ma non la semantica della sessione. Per ottenere un comportamento equivalente servirebbero correlazioni o ulteriori segnali, con una complessità sensibilmente maggiore. Tetragon offre in cambio filtraggio vicino alla sorgente e la possibilità di associare azioni di enforcement. La definizione deve quindi bilanciare copertura e selettività: condizioni troppo ampie aumentano falsi positivi e volume di telemetria, mentre condizioni troppo restrittive possono creare punti ciechi.
+
+\subsection{Risultati del confronto}
 I criteri di confronto considerati e le relative considerazioni per ciascuno strumento sono riportati nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation}.
 
 \begin{table}[htbp]

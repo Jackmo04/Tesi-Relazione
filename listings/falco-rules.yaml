@@ -1,0 +1,36 @@
+- rule: Interactive Shell in Container
+  desc: Detect an interactive shell started inside a container
+  condition: >
+    spawned_process
+    and container
+    and proc.name in (bash, sh, dash)
+    and proc.tty != 0
+  output: >
+    Interactive shell spawned in container
+    (user=%user.name container=%container.name
+    shell=%proc.name tty=%proc.tty command=%proc.cmdline)
+  priority: NOTICE
+  tags: [container, shell, execution]
+
+- rule: Write Below Sensitive Directory
+  desc: Detect a write operation below a sensitive path
+  condition: >
+    open_write
+    and container
+    and fd.name startswith /etc/
+  output: >
+    File opened for writing below a sensitive directory
+    (user=%user.name container=%container.name file=%fd.name)
+  priority: WARNING
+  tags: [container, filesystem]
+
+- rule: Drop and execute new binary in container
+  desc: >
+    Detect if an executable not belonging to the base image of a container is being executed.
+  condition: >
+    spawned_process
+    and container
+    and proc.is_exe_upper_layer=true
+  output: Executing binary not part of base image | proc_exe=%proc.exe proc_sname=%proc.sname ...
+  priority: CRITICAL
+  tags: [maturity_stable, container, process, mitre_persistence, TA0003, PCI_DSS_11.5.1]

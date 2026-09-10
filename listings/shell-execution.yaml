@@ -18,7 +18,3 @@ spec:
         - "/usr/bin/bash"
         - "/bin/sh"
         - "/usr/bin/sh"
-    - matchPIDs:
-        - isNamespacePID: true
-          operator: "NotIn"
-          values: [0]
