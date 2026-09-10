@@ -63,7 +63,11 @@
 %----------------------------------------------------------------------------------------
 
 \begin{abstract}
-(Massimo 2000 caratteri, scrivere verso la fine dei lavori) % TODO: Scrivere verso la fine.
+La sicurezza runtime degli ambienti cloud-native richiede di osservare le attività dei container a livello di sistema e di collegarle al contesto del workload. Questa tesi confronta Falco e Tetragon, due strumenti basati su eBPF che adottano modelli differenti: Falco è principalmente orientato alla detection e alla generazione di alert in user-space, mentre Tetragon privilegia il filtraggio vicino al kernel e supporta meccanismi di enforcement.
+
+Il confronto è stato condotto mediante una suite automatizzata composta da scenari generici, casi benigni, test Atomic Red Team e workload di stress. I test sono stati eseguiti in container usa-e-getta all'interno di una macchina virtuale Linux con Docker Compose. Gli eventi sono stati correlati tramite il Container ID e sono state misurate detection, precisione, latenza, consumo di CPU e memoria, oltre agli eventi persi durante il carico.
+
+Nella suite senza stress, Tetragon ha rilevato 13 dei 18 scenari malevoli, contro i 2 rilevati da Falco, con una latenza media leggermente inferiore. Falco ha mostrato un consumo di memoria minore, mentre Tetragon ha utilizzato meno CPU. Durante il test di stress basato su operazioni di esecuzione e apertura di file, Falco ha raggiunto un utilizzo della CPU molto elevato e ha registrato eventi persi; Tetragon non ha registrato drop nella configurazione sperimentata. I risultati sono limitati alle policy, alle versioni e all'ambiente adottati, ma evidenziano il compromesso tra contesto semantico, copertura, costo operativo e capacità di filtraggio vicino alla sorgente.
 \end{abstract}
 
 
@@ -88,7 +92,11 @@
 % La Svolta eBPF: Introduzione al tracciamento a livello kernel come nuovo paradigma di sicurezza Cloud-Native.
 % Obiettivi della Tesi: Definizione dell'obiettivo scientifico: confronto tra modelli reattivi (Falco) e preventivi (Tetragon), sviluppo di una suite automatizzata di benchmarking, e valutazione di integrabilità/efficacia in diversi ambienti.
 % \paragraph{Struttura della tesi}
-(Scrivere verso la fine dei lavori)
+La sicurezza degli ambienti cloud-native richiede di controllare il comportamento dei workload durante l'esecuzione, oltre a verificare immagini, configurazioni e policy prima del deployment. Poiché i container condividono il kernel dell'host, molte attività rilevanti per la sicurezza si manifestano attraverso syscall, accessi al filesystem, esecuzione di processi e connessioni di rete. L'osservabilità a livello kernel consente quindi di collegare questi eventi al contesto di container, pod e namespace.
+
+Questa tesi confronta Falco e Tetragon, concentrandosi sulle differenze tra detection user-space, filtraggio kernel-side ed enforcement. A questo scopo è stata sviluppata una suite automatizzata per eseguire scenari riproducibili, raccogliere la telemetria dei due strumenti e calcolare metriche di detection, latenza, perdita di eventi e overhead delle risorse. Il confronto è stato condotto in una macchina virtuale Linux con Docker Compose, mantenendo i due monitor attivi contemporaneamente e correlando gli eventi al Container ID.
+
+Il resto del documento è organizzato come segue. Il capitolo \ref{chap:background} introduce la sicurezza cloud-native e i fondamenti di eBPF. Il capitolo \ref{chap:falco-tetragon} presenta l'architettura di Falco e Tetragon, mentre il capitolo \ref{chap:use-cases-deployment} ne analizza casi d'uso, requisiti e modalità di deployment. Il capitolo \ref{chap:testing} descrive l'ambiente e la metodologia sperimentale; il capitolo \ref{chap:results} discute i risultati ottenuti. Infine, il capitolo \ref{chap:conclusion} riassume i contributi, i limiti e gli sviluppi futuri.
 
 \paragraph{Dichiarazione sull'uso di strumenti di GenAI}
 Per la redazione di questa tesi, sono stati utilizzati strumenti di intelligenza artificiale generativa (GitHub Copilot e Gemini 3.1 Pro) per supporto nella scrittura del codice e nella revisione dei testi. I dettagli sull’uso sono descritti nell'Appendice \ref{appendix-a}.
@@ -146,7 +154,7 @@ In ambito cloud-native, \ac{ebpf} viene spesso usato come strato di osservabilit
 
 In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci differenti per la rilevazione e la mitigazione di comportamenti sospetti o malevoli. La differenza fondamentale risiede nella posizione in cui viene valutata la policy: Falco tende a concentrarsi sul rilevamento e sulla generazione di alert in user-space, mentre Tetragon cerca di applicare la policy il più vicino possibile al punto di origine dell'evento, all'interno del kernel.
 
-Questa distinzione non è soltanto concettuale, ma incide direttamente sul modello operativo, sulla latenza di risposta e sulla capacità di prevenire un'azione prima che produca effetti rilevanti. In sintesi, Falco è un sistema di detections e alerting con elevata flessibilità di integrazione, mentre Tetragon è un sistema di osservabilità e enforcement kernel-first, pensato per scenari in cui la policy deve essere applicata in tempo reale con una finestra di rischio ridotta.
+Questa distinzione non è soltanto concettuale, ma incide direttamente sul modello operativo, sulla latenza di risposta e sulla capacità di prevenire un'azione prima che produca effetti rilevanti. In sintesi, Falco è un sistema di detection e alerting con elevata flessibilità di integrazione, mentre Tetragon è un sistema di osservabilità e enforcement kernel-first, pensato per scenari in cui la policy deve essere applicata in tempo reale con una finestra di rischio ridotta.
 
 \section{Falco}
 \label{sec:falco}
@@ -159,7 +167,7 @@ Dal punto di vista operazionale, Falco è particolarmente adatto a scenari in cu
 \subsection{Architettura di Falco}
 L'architettura di Falco è organizzata in una pipeline di raccolta, normalizzazione e valutazione delle policy. A livello di input, il sistema acquisisce eventi provenienti da sorgenti diverse: syscall del kernel, eventi di container runtime, metadati di orchestrazione e, in alcune configurazioni, dati provenienti da plugin esterni. La raccolta avviene mediante un componente di acquisizione che permette di esporre un flusso uniforme di eventi, indipendentemente dalla loro origine concreta. In pratica, il kernel continua a essere la fonte primaria del segnale, ma Falco arricchisce l'evento con contesto applicativo e di orchestrazione. \cite{falco-docs-event-src,falco-docs-supported-events,falco-about}
 
-L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone user-space, dove la regole engine verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e includono campi come tipo di syscall, nome del processo, path del file, namespace, container, username e altri attributi di contesto. Quando una regola viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. La scelta di effettuare la valutazione in user-space è funzionale alla flessibilità del sistema: il codice di rilevamento può essere aggiornato e modificato senza dover ricaricare o adattare il kernel dell'host. \cite{falco-docs-event-src,falco-docs-rules}
+L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone user-space, dove il rule engine verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e includono campi come tipo di syscall, nome del processo, path del file, namespace, container, username e altri attributi di contesto. Quando una regola viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. La scelta di effettuare la valutazione in user-space è funzionale alla flessibilità del sistema: il codice di rilevamento può essere aggiornato e modificato senza dover ricaricare o adattare il kernel dell'host. \cite{falco-docs-event-src,falco-docs-rules}
 
 Questa progettazione presenta vantaggi chiari in termini di semplicità operativa e compatibilità, ma implica anche una logica prettamente reattiva. L'evento viene catturato e valutato dopo che la syscall o l'azione critica è già stata eseguita; quindi Falco è ideale per analisi forense, monitoraggio continuo, alerting e automazione, ma non per bloccare l'azione nel punto esatto in cui si verifica. La sua architettura è quindi particolarmente efficace in scenari in cui il requisito principale è la visibilità ambientale e la capacità di trasformare i segnali di sistema in azioni di risposta organizzate.
 
@@ -181,7 +189,7 @@ In un ambiente cloud-native, dove i workload sono effimeri, distribuiti e spesso
 \subsection{Architettura di Tetragon}
 L'architettura di Tetragon è progettata per essere kernel-first. L'agente viene eseguito su ciascun nodo e carica programmi eBPF in risposta a hook del kernel, come kprobe, tracepoint e altri punti di osservazione del sistema. Questi programmi vengono verificati dal kernel e compilati in codice macchina JIT, in modo da consentire un monitoraggio efficiente con costo ridotto di trasferimento dei dati verso user-space. L'idea è che la decisione di raccolta e filtraggio avvenga il più vicino possibile alla sorgente dell'evento, senza far transitare tutti i dati attraverso un layer applicativo intermedio. \cite{tetragon-docs,tetragon-docs-hooks}
 
-L'event path di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting. \cite{tetragon-docs}
+Il percorso degli eventi di Tetragon è quindi strutturato in più livelli. In primo luogo, i programmi eBPF vengono agganciati ai punti di tracciamento rilevanti per osservare l'esecuzione dei processi e le chiamate di sistema sensibili. In secondo luogo, i dati vengono filtrati e aggregati tramite mappe e strutture kernel-side per mantenere lo stato necessario alla policy. In terzo luogo, le informazioni vengono consegnate a un componente user-space che espone il risultato della valutazione, integra il contesto Kubernetes e gestisce le azioni di risposta. In questo modello, la parte di enforcement può essere applicata direttamente nel kernel, riducendo notevolmente la latenza rispetto a un'architettura basata esclusivamente su alerting. \cite{tetragon-docs}
 
 Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF (BPF Type Format)\footnote{Documentazione BTF: \url{https://docs.kernel.org/bpf/btf.html}}. BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload. \cite{tetragon-docs,tetragon-docs-hooks}
 
@@ -245,11 +253,10 @@ Entrambi gli strumenti operano principalmente su Linux, dove possono agganciarsi
 
 Falco può essere eseguito con diverse strategie di acquisizione eventi (driver kernel o eBPF probe), il che offre maggiore flessibilità di compatibilità su ambienti eterogenei.
 
-Tetragon, invece, dipende in modo più marcato dalle capacità moderne del kernel, in particolare dal supporto a BTF per un tracciamento robusto e portabile. Di conseguenza:
-è consigliato l'uso di kernel recenti con supporto BTF disponibile, la verifica preliminare delle funzionalità eBPF del nodo diventa una fase critica prima del rollout e, nei cluster eterogenei, eventuali differenze tra nodi possono influenzare l'uniformità e l'affidabilità delle policy \cite{tetragon-docs,tetragon-docs-hooks}.
+Tetragon, invece, dipende in modo più marcato dalle capacità moderne del kernel, in particolare dal supporto a BTF per un tracciamento robusto e portabile. Di conseguenza, è consigliato l'uso di kernel recenti con supporto BTF disponibile; la verifica preliminare delle funzionalità eBPF del nodo diventa una fase critica prima del rollout e, nei cluster eterogenei, eventuali differenze tra nodi possono influenzare l'uniformità e l'affidabilità delle policy \cite{tetragon-docs,tetragon-docs-hooks}.
 
 \section{Deployment: host, Docker standalone e Kubernetes}
-\label{sec:deployment-models} % TODO: rewrite almost completely
+\label{sec:deployment-models}
 
 La scelta della modalità di deployment influenza profondamente visibilità, copertura e costo operativo.
 
@@ -264,7 +271,7 @@ L'installazione diretta su host è adatta a server singoli, laboratori o ambient
 L'esecuzione come container standalone semplifica packaging e distribuzione, ma richiede mount e capability adeguate per osservare il kernel dell'host.
 \begin{itemize}
     \item \textbf{Falco:} richiede il mount di diversi volumi; l'esecuzione deve avvenire in contesto privilegiato oppure con capability specifiche.
-    \item \textbf{Tetragon:} il container deve privilegiato, avere accesso a BTF e utilizzare PID namespace e Cgroups dell'host.
+    \item \textbf{Tetragon:} il container deve essere privilegiato, avere accesso a BTF e utilizzare il PID namespace e i cgroups dell'host.
 \end{itemize}
 
 \subsection{Deployment in Kubernetes}
@@ -316,7 +323,7 @@ Tetragon esprime intenzioni analoghe attraverso risorse YAML \textit{TracingPoli
     label={lst:tetragon-policy-etc-write}
 ]{listings/etc-write.yaml}
 
-La prima policy si aggancia a \texttt{sys\_execve} e seleziona i programmi il cui percorso inizia con \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} o \texttt{/run/}. Il filtro intercetta quindi l'esecuzione da directory comunemente utilizzate per file temporanei o scrivibili, senza dipendere dal nome del processo. La seconda policy utilizza l'hook \texttt{security\_file\_permission}, acquisisce il file e il tipo di accesso e seleziona le operazioni con flag \texttt{MAY\_WRITE} su percorsi sotto \texttt{/etc/}. L'uso di un hook LSM e del valore di ritorno permette di osservare una fase specifica del controllo dei permessi del filesystem.
+La policy per i percorsi scrivibili si aggancia a \texttt{sys\_execve} e seleziona i programmi il cui percorso inizia con \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} o \texttt{/run/}. Il filtro intercetta quindi l'esecuzione da directory comunemente utilizzate per file temporanei o scrivibili, senza dipendere dal nome del processo. La policy per la scrittura in \texttt{/etc/} utilizza invece l'hook \texttt{security\_file\_permission}, acquisisce il file e il tipo di accesso e seleziona le operazioni con flag \texttt{MAY\_WRITE} su percorsi sotto \texttt{/etc/}. L'uso di un hook LSM e del valore di ritorno permette di osservare una fase specifica del controllo dei permessi del filesystem.
 
 Il confronto tra la terza regola Falco e la policy Tetragon per i percorsi scrivibili richiede una precisazione. Falco verifica direttamente l'appartenenza dell'eseguibile all'upper layer dell'overlay filesystem; Tetragon, attraverso \texttt{sys\_execve}, non riceve invece un attributo equivalente che indichi se il file provenga dall'immagine base o dal layer scrivibile. Nel test questa differenza è stata gestita con un'approssimazione basata sui prefissi \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. La policy Tetragon rileva quindi l'esecuzione da directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory. Si tratta di una corrispondenza comportamentale, non di una replica semantica del campo Falco.
 
@@ -391,7 +398,7 @@ In questo capitolo viene descritto il programma di testing sviluppato per confro
 
 \section{Motivazione e Obiettivi}
 
-Il confronto tra Falco e Tetragon non puo essere limitato a una descrizione architetturale o a un'analisi qualitativa delle funzionalita dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel. Per questo motivo, la tesi introduce un programma di testing automatizzato con due finalita principali: generare scenari riproducibili e misurare in modo quantitativo l'efficacia di detection/enforcement.
+Il confronto tra Falco e Tetragon non può essere limitato a una descrizione architetturale o a un'analisi qualitativa delle funzionalità dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel. Per questo motivo, la tesi introduce un programma di testing automatizzato con due finalità principali: generare scenari riproducibili e misurare in modo quantitativo l'efficacia di detection ed enforcement.
 
 La motivazione sperimentale nasce da tre esigenze. Primo, verificare la capacita reale di individuare comportamenti malevoli in presenza di rumore operativo (processi legittimi, burst di syscall, I/O intenso). Secondo, misurare il costo operativo dell'osservabilita kernel-level, evitando valutazioni basate solo su percezioni o benchmark non comparabili. Terzo, analizzare la differenza tra un modello prevalentemente reattivo (Falco) e un modello kernel-first con possibilita di blocco (Tetragon), soprattutto in termini di latenza e finestra di rischio.
 
@@ -399,11 +406,11 @@ Gli scenari di test considerano classi di vulnerabilita e tecniche offensive rea
 \begin{itemize}
     \item \textbf{Privilege escalation e abuso di capability:} tentativi di esecuzione con privilegi non attesi, uso anomalo di namespace/capability, process injection.
     \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di secret, token di servizio e file di configurazione critici.
-    \item \textbf{Command execution e living-off-the-land:} avvio di shell inattese, chain di comandi sospetti, utilizzo di binari legittimi per finalita malevole.
+    \item \textbf{Command execution e living-off-the-land:} avvio di shell inattese, chain di comandi sospetti, utilizzo di binari legittimi per finalità malevole.
     \item \textbf{Comportamenti di evasione e overload:} burst di eventi, flood di syscall e pattern rumorosi volti a ridurre la qualita del segnale o a causare perdita di eventi.
 \end{itemize}
 
-L'obiettivo non e dimostrare che uno strumento sia ``migliore'' in assoluto, ma misurare in quali condizioni ciascun approccio mantiene efficacia, affidabilita e sostenibilita operativa.
+L'obiettivo non è dimostrare che uno strumento sia ``migliore'' in assoluto, ma misurare in quali condizioni ciascun approccio mantiene efficacia, affidabilità e sostenibilità operativa.
 
 Dal punto di vista metodologico, uno degli obiettivi centrali è la costruzione di una matrice di confusione per la componente di detection, con classificazione degli eventi in \textit{True Positive} (TP), \textit{False Positive} (FP), \textit{False Negative} (FN) e \textit{True Negative} (TN). A partire da questa base vengono calcolate le metriche principali:
 
@@ -417,7 +424,7 @@ Dal punto di vista metodologico, uno degli obiettivi centrali è la costruzione 
 \text{Precision} = \frac{TP}{TP + FP}
 \]
 
-\noindent che misura l'affidabilita delle allerte generate e il loro impatto sul carico di notifica/triage.
+\noindent che misura l'affidabilità delle allerte generate e il loro impatto sul carico di notifica/triage.
 
 Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di tempestivita e costo infrastrutturale:
 
@@ -463,7 +470,7 @@ La scelta di eseguire i test in una \ac{vm} consente di isolare il piano sperime
 
 Per il deployment è stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
 \begin{itemize}
-    \item mantenere parita di contesto di esecuzione (stesso nodo, stesso kernel, stesso runtime);
+    \item mantenere parità di contesto di esecuzione (stesso nodo, stesso kernel, stesso runtime);
     \item versionare in modo esplicito immagini e parametri di avvio;
     \item riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
 \end{itemize}
@@ -485,7 +492,7 @@ La scelta di un formato strutturato facilita la normalizzazione dei campi, riduc
 
 Nel comando di avvio di Tetragon è inoltre presente l'opzione \texttt{--export-}\allowbreak\texttt{allowlist}. Essa limita gli eventi inoltrati all'exporter ai soli tipi \texttt{PROCESS\_}\allowbreak\texttt{KPROBE}, \texttt{PROCESS\_}\allowbreak\texttt{TRACEPOINT} e \texttt{PROCESS\_LSM}. L'allowlist non disattiva gli hook né modifica le policy caricate: agisce sul flusso di eventi esportati verso il file di log. La sua funzione, in questo esperimento, è rendere il confronto più omogeneo con Falco, che produce un alert quando una regola di detection viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
 
-Inoltre, nel servizio Tetragon è stato montata la directory \texttt{tetragon-policies} contenente le policy di tracing/enforcement da caricare a runtime. Questo consente di modificare le regole senza dover ricostruire l'immagine del container, aumentando la flessibilità della sperimentazione.
+Inoltre, nel servizio Tetragon è stata montata la directory \texttt{tetragon-policies} contenente le policy di tracing/enforcement da caricare a runtime. Questo consente di modificare le regole senza dover ricostruire l'immagine del container, aumentando la flessibilità della sperimentazione.
 
 Infine, si precisa che i mount e i privilegi adottati in entrambi i servizi seguono le indicazioni operative riportate nella documentazione ufficiale dei due strumenti, adattate al perimetro sperimentale di questa tesi \cite{falco-docs-install,tetragon-docs-install}.
 
@@ -773,11 +780,15 @@ In conclusione, Falco e Tetragon non devono essere considerati alternative rigid
 % - Modalità specifiche di utilizzo: fornire informazioni su come è stato utilizzato lo strumento, ad esempio collegandolo allo specifico caso d’uso previsto, ad esempio per presentazione di una lezione: “Supporto alla creazione di testo o elenchi puntati” “Supporto alla creazione di grafici esplicativi”, “Produzione di materiali multimediali”, didattici per docenti e studenti, come presentazioni e appunti di lezione”; per l’elaborazione di una tesi: “Revisione e ottimizzazione dei testi per migliorare chiarezza e coerenza”, “Generazione di grafici e diagrammi per la presentazione dei dati nella sezione ‘Risultati’, "Supporto alla scrittura automatica di frasi”, “Produzione di immagini illustrative per integrare la parte metodologica."
 % - Capitoli, sezioni o sottosezioni specifiche in cui lo strumento è stato utilizzato: specificare esattamente dove è stato applicato l’uso dello strumento, ad esempio “Generazione dei grafici di supporto nel Capitolo 2, Sezione 2.3.”, “Creazione di una struttura preliminare del Capitolo 2, 3 e 4”, “Creazione di immagini e diagrammi per l’esposizione dei risultati nelle Slide 12-13.”, “Generazione dello stato dell’arte contenuto nel Paragrafo 2 a partire dalla sola conoscenza di GenAI”
 
-(Dichiarazione di Trasparenza ed Etica)
+Questa appendice documenta l'impiego di strumenti di intelligenza artificiale generativa durante la redazione della tesi. Gli strumenti sono stati utilizzati come supporto alla scrittura del codice, alla revisione linguistica e alla riorganizzazione di alcuni passaggi testuali. La responsabilità per la selezione delle fonti, la correttezza delle descrizioni tecniche, l'esecuzione degli esperimenti e l'interpretazione dei risultati rimane dell'autore.
 
 \section{Strumenti utilizzati}
 
+Sono stati utilizzati GitHub Copilot e Gemini 3.1 Pro. Il loro impiego ha riguardato principalmente il supporto alla scrittura e alla revisione del codice della suite di testing, il controllo della chiarezza espositiva e l'individuazione di possibili errori linguistici. Le regole eBPF, i comandi di test, le misurazioni e i risultati riportati nella tesi sono stati verificati nell'ambiente sperimentale descritto nel \Cref{chap:testing}.
+
 \section{Esempi di Prompt}
+
+Le richieste hanno riguardato la proposta di implementazioni per il programma di testing, la revisione di frammenti LaTeX e Python, il controllo della coerenza tra descrizione metodologica e risultati e la riformulazione di passaggi tecnici. Le risposte generate sono state usate come supporto, sottoposte a verifica manuale e adattate al contenuto effettivamente prodotto durante il lavoro.
 
 % Sottolineare che tutti i comandi di exploit, le regole eBPF, le misurazioni di latenza e le conclusioni derivano da esperimenti reali condotti sull'infrastruttura di test e non da allucinazioni del modello.
 %----------------------------------------------------------------------------------------
@@ -794,7 +805,6 @@ In conclusione, Falco e Tetragon non devono essere considerati alternative rigid
 \endgroup
 
 \begin{acknowledgements}
-(Ringraziamenti a supervisori, colleghi, amici e famiglia.)
 \end{acknowledgements}
 
 \end{document}
