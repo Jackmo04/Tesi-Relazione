@@ -715,6 +715,8 @@ La seconda direzione riguarda la ripetizione delle campagne. Sarebbe utile esegu
 
 Un terzo sviluppo consiste nel migliorare la gestione della saturazione. Oltre a rilevare i drop, il framework potrebbe correlare l'evento di saturazione con il workload e con il tipo di policy attiva, fornendo indicazioni operative sul componente responsabile. Sarebbe inoltre possibile sperimentare configurazioni diverse dei buffer, delle regole Falco e dei filtri Tetragon, verificando il compromesso tra copertura, rumore e capacità di assorbimento.
 
+Un'ulteriore estensione consiste nell'eseguire la suite all'interno di pod Kubernetes invece che in container Docker standalone. Questo permetterebbe di valutare il comportamento dei due strumenti nel contesto operativo per cui sono principalmente concepiti, includendo namespace, label, service account, metadata dei pod e distribuzione dei workload sui nodi tramite DaemonSet. Il passaggio a Kubernetes consentirebbe inoltre di verificare la correlazione tra eventi kernel e identità del pod, nonché l'impatto dell'orchestratore sul deployment, sul ciclo di vita dei test e sulle policy runtime.
+
 In conclusione, Falco e Tetragon non devono essere considerati alternative rigidamente esclusive. Falco offre un livello semantico utile per detection, audit e integrazione con sistemi user-space, mentre Tetragon offre una collocazione più vicina al kernel, adatta a filtraggio rapido ed enforcement. La scelta più efficace dipende dal requisito di sicurezza, dal carico previsto e dal livello di tuning sostenibile dal team operativo. Un'architettura ibrida può assegnare a Falco le condizioni che richiedono contesto ricco e a Tetragon le policy che richiedono risposta a bassa latenza.
 
 \appendix
