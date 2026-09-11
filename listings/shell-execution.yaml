@@ -3,6 +3,7 @@ kind: TracingPolicy
 metadata:
   name: "detect-shell-execution"
 spec:
+  podSelector: {}
   kprobes:
   - call: "sys_execve"
     syscall: true

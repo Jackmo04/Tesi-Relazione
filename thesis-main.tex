@@ -274,53 +274,57 @@ In un cluster Kubernetes, Falco e Tetragon vengono normalmente distribuiti media
 
 Il vantaggio principale rispetto al container standalone è operativo: la configurazione può essere versionata come risorsa Kubernetes e replicata e aggiornata automaticamente sui nodi del cluster. Falco beneficia dell'integrazione con chart, regole e output verso sistemi esterni; Tetragon si integra naturalmente con le identità dei pod e con l'ecosistema Cilium, rendendo più dirette le policy basate sul contesto Kubernetes. In entrambi i casi, l'orchestratore semplifica la gestione, ma non elimina la necessità di verificare la compatibilità del kernel di ciascun nodo. In un cluster eterogeneo, infatti, le differenze di BTF, hook o configurazione eBPF possono infatti produrre una copertura non uniforme.
 
-\section{Facilità di configurazione: confronto operativo}
+\section{Facilità di configurazione e gestione}
 \label{sec:configuration-ease}
 
-La facilità di adozione di uno strumento di runtime security non dipende soltanto dal numero di comandi necessari per avviarlo. È necessario considerare anche i prerequisiti del nodo, la complessità delle policy, il livello di integrazione con l'orchestratore, le attività di tuning e la gestione delle modifiche nel tempo. 
+La facilità di adozione di uno strumento di runtime security non dipende soltanto dal numero di comandi necessari per avviarlo. È necessario considerare anche la complessità della scrittura delle policy, il livello di integrazione con altri strumenti, le attività di tuning e la gestione delle modifiche nel tempo. 
 
-Al fine di valutare concretamente i due strumenti, una parte importante di questa tesi è stata rivolta all'installazione, alla configurazione e al tuning di Falco e Tetragon in ambienti Kubernetes. Sono stati considerati diversi scenari, dalla semplice osservazione di eventi a policy più complesse con enforcement, per comprendere le differenze operative e i requisiti di gestione.
+Al fine di valutare concretamente i due strumenti, una parte importante di questa tesi è stata rivolta all'installazione, alla configurazione e al tuning di Falco e Tetragon in ambienti Docker e Kubernetes. Sono stati considerati diversi scenari, dalla semplice osservazione di eventi a policy più complesse con enforcement, per comprendere le differenze operative e i requisiti di gestione.
 
-Si precisa che in questa sezione Falco e Tetragon vengono confrontati esclusivamente in termini di facilità di installazione, configurazione e gestione operativa, poiché la valutazione delle performance e dell'efficacia delle policy è oggetto del capitolo successivo (\Cref{chap:testing}).
+Per eseguire il cluster Kubernetes di test è stato utilizzato \texttt{minikube} con driver Docker su nodo singolo, che ha permesso di simulare un ambiente di orchestrazione senza introdurre complessità aggiuntive. \cite{minikube}
 
-\subsection{Definizione delle regole e delle TracingPolicy}
+Si precisa, infine, che in questa sezione Falco e Tetragon vengono confrontati esclusivamente in termini di facilità di installazione, configurazione e gestione operativa, poiché la valutazione dell'efficacia delle policy e delle performance è oggetto del \Cref{chap:testing}.
+
+\subsection{Definizione delle policy}
 \label{sec:rules-and-policies}
 
-La configurazione delle regole rappresenta il punto in cui le capacità di osservazione dei due strumenti vengono trasformate in decisioni di sicurezza. In Falco una regola combina generalmente una condizione sugli eventi, un messaggio di output, una priorità e un insieme di tag. La condizione può utilizzare sia il tipo di operazione sia il contesto arricchito del processo e del container. Il \Cref{lst:falco-rules-example} contiene tre regole rappresentative: la rilevazione di una shell interattiva, la scrittura sotto una directory sensibile e l'esecuzione di un binario introdotto nel layer scrivibile del container.
+La configurazione delle policy rappresenta il punto in cui le capacità di osservazione dei due strumenti vengono trasformate in decisioni di sicurezza. In Falco una regola combina generalmente una condizione su degli eventi, un messaggio di output, una priorità e un insieme di tag. La condizione può utilizzare sia il tipo di operazione sia il contesto arricchito del processo e del container. Il Listato \ref{lst:falco-rules-example} contiene tre regole rappresentative: la rilevazione di una shell interattiva, la scrittura sotto una directory sensibile e l'esecuzione di un binario introdotto nel layer scrivibile del container.
 
 \lstinputlisting[
     language=yaml,
-    caption={Esempi di regole Falco per shell interattive e scritture in directory sensibili.},
+    caption={Esempi di regole Falco.},
     label={lst:falco-rules-example}
 ]{listings/falco-rules.yaml}
 
-La prima regola combina la creazione di un processo, l'appartenenza a un container, il nome della shell e la presenza di una TTY. Il campo \texttt{proc.tty} permette quindi di distinguere, a livello di regola, una shell interattiva da un processo che utilizza lo stesso interprete per eseguire un comando non interattivo. La seconda regola utilizza invece il campo del file descriptor per limitare la detection alle aperture in scrittura sotto \texttt{/etc/}. La terza usa il campo semantico \texttt{proc.is\_exe\_upper\_layer}: in un container basato su filesystem overlay, il valore è vero quando l'eseguibile proviene dall'upper layer scrivibile del container, cioè da una modifica o da un file aggiunto durante l'esecuzione, e non dai layer immutabili dell'immagine di base. In questo caso Falco può quindi rilevare l'esecuzione di un binario introdotto nel container senza dover dedurre la sua origine soltanto dal percorso. Gli output includono inoltre il contesto utile all'analisi, come utente, container, percorso, comando e priorità dell'alert.
+La prima regola combina la creazione di un processo, l'appartenenza a un container, il nome della shell e la presenza di una TTY. Il campo \texttt{proc.tty} permette quindi di distinguere, una shell interattiva da un processo che utilizza lo stesso interprete per eseguire un comando non interattivo, potenzialmente riducendo drasticamente il numero di falsi positivi. La seconda regola utilizza invece il campo del file descriptor per limitare la rilevazione alle aperture in scrittura solo in \texttt{/etc/}. La terza usa il campo semantico \texttt{proc.is\_exe\_upper\_layer}: in un container basato su OverlayFS, il valore è vero quando l'eseguibile proviene dall'upper layer scrivibile del container, cioè da una modifica o da un file aggiunto durante l'esecuzione, e non dai layer immutabili dell'immagine di base. In questo caso Falco può quindi rilevare l'esecuzione di un binario introdotto nel container senza dover dedurre la sua origine soltanto dal percorso.
 
-Tetragon esprime intenzioni analoghe attraverso risorse YAML \textit{TracingPolicy}. Una policy specifica l'hook del kernel, gli argomenti da estrarre e i selettori che devono essere soddisfatti. I tre listing seguenti permettono un confronto diretto con le regole Falco: esecuzione di shell, scrittura sotto \texttt{/etc/} ed esecuzione da percorsi scrivibili. Rispetto a una regola Falco, le condizioni Tetragon sono ancorate direttamente a hook del kernel e a specifici argomenti dell'evento.
+Tetragon esprime intenzioni analoghe attraverso risorse YAML \textit{TracingPolicy}. Una policy specifica l'hook del kernel, gli argomenti da estrarre e i selettori che devono essere soddisfatti.
 
 \lstinputlisting[
     language=yaml,
-    caption={TracingPolicy Tetragon per l'esecuzione di shell.},
+    caption={TracingPolicy per l'esecuzione di shell.},
     label={lst:tetragon-policy-shell-deployment}
 ]{listings/shell-execution.yaml}
 
 \lstinputlisting[
     language=yaml,
-    caption={TracingPolicy Tetragon per l'esecuzione da percorsi scrivibili.},
-    label={lst:tetragon-policy-writable-paths}
-]{listings/execve-in-writable-paths.yaml}
-
-\lstinputlisting[
-    language=yaml,
-    caption={TracingPolicy Tetragon per la scrittura nella directory \texttt{/etc/}.},
+    caption={TracingPolicy per la scrittura nella directory \texttt{/etc/}.},
     label={lst:tetragon-policy-etc-write}
 ]{listings/etc-write.yaml}
 
-La policy per i percorsi scrivibili si aggancia a \texttt{sys\_execve} e seleziona i programmi il cui percorso inizia con \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} o \texttt{/run/}. Il filtro intercetta quindi l'esecuzione da directory comunemente utilizzate per file temporanei o scrivibili, senza dipendere dal nome del processo. La policy per la scrittura in \texttt{/etc/} utilizza invece l'hook \texttt{security\_file\_permission}, acquisisce il file e il tipo di accesso e seleziona le operazioni con flag \texttt{MAY\_WRITE} su percorsi sotto \texttt{/etc/}. L'uso di un hook LSM e del valore di ritorno permette di osservare una fase specifica del controllo dei permessi del filesystem.
+\lstinputlisting[
+    language=yaml,
+    caption={TracingPolicy per l'esecuzione da percorsi scrivibili.},
+    label={lst:tetragon-policy-writable-paths}
+]{listings/execve-in-writable-paths.yaml}
 
-Il confronto tra la terza regola Falco e la policy Tetragon per i percorsi scrivibili richiede una precisazione. Falco verifica direttamente l'appartenenza dell'eseguibile all'upper layer dell'overlay filesystem; Tetragon, attraverso \texttt{sys\_execve}, non riceve invece un attributo equivalente che indichi se il file provenga dall'immagine base o dal layer scrivibile. Nel test questa differenza è stata gestita con un'approssimazione basata sui prefissi \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. La policy Tetragon rileva quindi l'esecuzione da directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory. Si tratta di una corrispondenza comportamentale, non di una replica semantica del campo Falco.
+Nella prima policy (Listato \ref{lst:tetragon-policy-shell-deployment}) si può vedere l'utilizzo del filtro \texttt{podSelector} per escludere i processi dell'host dall'applicazione della regola. L'hook \texttt{sys\_execve} permette di osservare l'esecuzione di un processo e di estrarre il percorso del binario eseguito, che viene confrontato con il selettore \texttt{matchArgs} specificato.
 
-Le tre coppie mostrano differenze di espressività. La sintassi Falco è più strutturata e intuitiva per chi deve combinare evento, contesto, output e severità in una regola leggibile. La sintassi Tetragon richiede invece di conoscere l'hook corretto, la firma della syscall o della funzione kernel, gli indici degli argomenti e i tipi supportati dai programmi eBPF. Il caso della shell è il più evidente: Falco verifica direttamente \texttt{proc.tty != 0}, mentre la policy Tetragon basata su \texttt{execve} conosce il percorso del binario ma non la semantica della sessione. Per ottenere un comportamento equivalente servirebbero correlazioni o ulteriori segnali, con una complessità sensibilmente maggiore. Tetragon offre in cambio filtraggio vicino alla sorgente e la possibilità di associare azioni di enforcement. La definizione deve quindi bilanciare copertura e selettività: condizioni troppo ampie aumentano falsi positivi e volume di telemetria, mentre condizioni troppo restrittive possono creare punti ciechi.
+La policy per il rilevamento di scritture in \texttt{/etc/} (Listato \ref{lst:tetragon-policy-etc-write}) utilizza l'hook \texttt{security\_file\_permission} che permette di osservare diverse operazioni sui file, invece che una singola syscall. Il filtro \texttt{matchArgs} seleziona le operazioni con flag \texttt{MAY\_WRITE} e percorso sotto \texttt{/etc/}.
+
+Per quanto riguarda la terza policy (Listato \ref{lst:tetragon-policy-writable-paths}), invece, la differenza rispetto a falco è molto più sostanziale: mentre Falco può verificare direttamente se l'eseguibile proviene dall'upper layer del filesystem overlay, Tetragon non riceve un attributo equivalente attraverso \texttt{sys\_execve}. In questo caso, la policy Tetragon si basa su un'approssimazione dei percorsi scrivibili, come \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. Ciò significa che la policy di Tetragon rileva l'esecuzione di binari in directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory.
+
+Le tre coppie di policy mostrano differenze di espressività. La sintassi Falco è più strutturata e intuitiva per chi deve combinare evento, contesto, output e severità in una regola leggibile. La sintassi Tetragon richiede invece di conoscere l'hook corretto, la firma della syscall o della funzione kernel, gli indici degli argomenti e i tipi supportati dai programmi eBPF. Il caso della shell è il più evidente: Falco verifica direttamente \texttt{proc.tty != 0}, mentre la policy Tetragon basata su \texttt{sys\_execve} conosce il percorso del binario ma non la semantica della sessione. Per ottenere un comportamento equivalente servirebbero correlazioni o ulteriori segnali, con una complessità maggiore. Tetragon offre in cambio filtraggio vicino alla sorgente e la possibilità di associare azioni di enforcement. La definizione deve quindi bilanciare copertura e selettività: condizioni troppo ampie aumentano falsi positivi e volume di telemetria, mentre condizioni troppo restrittive possono creare punti ciechi.
 
 \subsection{Risultati del confronto}
 I criteri di confronto considerati e le relative considerazioni per ciascuno strumento sono riportati nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation}.
