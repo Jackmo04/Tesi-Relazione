@@ -73,7 +73,7 @@
 
 %----------------------------------------------------------------------------------------
 
-\begin{abstract}
+\begin{abstract} % TODO: da rivedere
 La sicurezza runtime degli ambienti cloud-native richiede di osservare le attività dei container a livello di sistema e di collegarle al contesto del workload. Questa tesi confronta Falco e Tetragon, due strumenti basati su eBPF che adottano modelli differenti: Falco è principalmente orientato alla detection e alla generazione di alert in \userspace, mentre Tetragon privilegia il filtraggio vicino al kernel e supporta meccanismi di enforcement.
 
 Il confronto è stato condotto mediante una suite automatizzata composta da scenari generici, casi benigni, test Atomic Red Team e workload di stress. I test sono stati eseguiti in container usa-e-getta all'interno di una macchina virtuale Linux con Docker Compose. Gli eventi sono stati correlati tramite il Container ID e sono state misurate detection, precisione, latenza, consumo di CPU e memoria, oltre agli eventi persi durante il carico.
@@ -97,7 +97,7 @@ Nella suite senza stress, Tetragon ha rilevato 13 dei 18 scenari malevoli, contr
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Introduzione}
+\chapter{Introduzione} % TODO: da rivedere
 \label{chap:introduction}
 % Context & Problem Statement: La sicurezza della runtime nei container e i limiti dell'approccio tradizionale basato solo su analisi statiche o agenti in \userspace.
 % La Svolta eBPF: Introduzione al tracciamento a livello kernel come nuovo paradigma di sicurezza Cloud-Native.
@@ -383,45 +383,42 @@ La scelta non è quindi riconducibile a una semplice contrapposizione tra uno st
 
 \chapter{Testing e Validazione}
 \label{chap:testing}
-In questo capitolo viene descritto il programma di testing sviluppato per confrontare in modo quantitativo Falco e Tetragon. L'obiettivo è misurare l'efficacia delle policy, la latenza di rilevazione, la finestra di rischio e l'overhead operativo in scenari realistici di runtime security.
+In questo capitolo vengono descritte le metodologie e gli strumenti utilizzati per la validazione sperimentale di Falco e Tetragon, con l'obiettivo di misurare dati quantitativi e confrontabili.
 
 \section{Motivazione e Obiettivi}
 
-Il confronto tra Falco e Tetragon non può essere limitato a una descrizione architetturale o a un'analisi qualitativa delle funzionalità dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel. Per questo motivo, la tesi introduce un programma di testing automatizzato con due finalità principali: generare scenari riproducibili e misurare in modo quantitativo l'efficacia di detection ed enforcement.
+Il confronto tra Falco e Tetragon non può limitarsi a una descrizione architetturale o a un'analisi qualitativa delle funzionalità dichiarate. Entrambi gli strumenti operano su flussi di eventi runtime ad alta frequenza, in cui il comportamento effettivo dipende dal carico, dal tipo di workload, dalla configurazione delle policy e dalle caratteristiche del kernel.
 
-La motivazione sperimentale nasce da tre esigenze. Primo, verificare la capacita reale di individuare comportamenti malevoli in presenza di rumore operativo (processi legittimi, burst di syscall, I/O intenso). Secondo, misurare il costo operativo dell'osservabilita kernel-level, evitando valutazioni basate solo su percezioni o benchmark non comparabili. Terzo, analizzare la differenza tra un modello prevalentemente reattivo (Falco) e un modello kernel-first con possibilita di blocco (Tetragon), soprattutto in termini di latenza e finestra di rischio.
+La motivazione sperimentale nasce da tre esigenze. Primo, verificare la capacita reale di individuare comportamenti malevoli, anche in presenza di rumore operativo (processi legittimi, burst di syscall, I/O intenso). Secondo, misurare il costo operativo dell'osservabilita kernel-level, valutandone l'effetto sulle risorse del sistema. Terzo, analizzare la differenza tra un modello prevalentemente reattivo (Falco) e un modello kernel-first con possibilita di blocco (Tetragon), soprattutto in termini di latenza e finestra di rischio.
 
-Gli scenari di test considerano classi di vulnerabilita e tecniche offensive realistiche per ambienti cloud-native, tra cui:
+Gli scenari di test mirano a replicare situazioni reali di minacce e attacchi, considerando classi di vulnerabilita e tecniche offensive realistiche per ambienti cloud-native, tra cui:
 \begin{itemize}
-    \item \textbf{Privilege escalation e abuso di capability:} tentativi di esecuzione con privilegi non attesi, uso anomalo di namespace/capability, process injection.
-    \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di secret, token di servizio e file di configurazione critici.
-    \item \textbf{Command execution e living-off-the-land:} avvio di shell inattese, chain di comandi sospetti, utilizzo di binari legittimi per finalità malevole.
+    \item \textbf{Accesso non autorizzato a file sensibili:} lettura o modifica di file di configurazione, credenziali o chiavi private.
+    \item \textbf{Esecuzione di comandi e \textit{living-off-the-land}:} avvio di shell inattese, catene di comandi sospetti, utilizzo di binari legittimi per finalità malevole.
     \item \textbf{Comportamenti di evasione e overload:} burst di eventi, flood di syscall e pattern rumorosi volti a ridurre la qualita del segnale o a causare perdita di eventi.
+    \item \textbf{Ricerca di informazioni:} tentativi di enumerazione del sistema e dei container alla ricerca di possibili vettori di attacco.
 \end{itemize}
 
 L'obiettivo non è dimostrare che uno strumento sia ``migliore'' in assoluto, ma misurare in quali condizioni ciascun approccio mantiene efficacia, affidabilità e sostenibilità operativa.
 
-Dal punto di vista metodologico, uno degli obiettivi centrali è la costruzione di una matrice di confusione per la componente di detection, con classificazione degli eventi in \textit{True Positive} (TP), \textit{False Positive} (FP), \textit{False Negative} (FN) e \textit{True Negative} (TN). A partire da questa base vengono calcolate le metriche principali:
+\section{Metriche di valutazione}
+
+Dal punto di vista metodologico, uno degli obiettivi centrali di questo progetto è la costruzione di una matrice di confusione per la componente di rilevamento, con classificazione degli eventi in \textit{True Positive} (TP), \textit{False Positive} (FP), \textit{False Negative} (FN) e \textit{True Negative} (TN). A partire da questa base vengono calcolate le seguenti metriche principali:
 
 \[
 \text{Detection Recall (TPR)} = \frac{TP}{TP + FN}
 \]
 
-\noindent che misura la percentuale di attacchi reali correttamente identificati.
+\noindent per misurare la percentuale di attacchi o comportamenti malevoli correttamente identificati.
 
 \[
 \text{Precision} = \frac{TP}{TP + FP}
 \]
 
-\noindent che misura l'affidabilità delle allerte generate e il loro impatto sul carico di notifica/triage.
+\noindent per misurare l'affidabilità degli avvisi generati e perciò il loro impatto sul carico di notifica.
 
-Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di tempestivita e costo infrastrutturale:
-
-% \[
-% \text{Event Loss Rate} = \frac{\text{Eventi}_{\text{Inviati}} - \text{Eventi}_{\text{Intercettati}}}{\text{Eventi}_{\text{Inviati}}} \times 100
-% \]
-
-% \noindent utile a valutare la resilienza del ring buffer eBPF sotto alto carico di IOPS/syscall.
+\bigskip\noindent
+Accanto alle metriche derivate dalla matrice di confusione, il framework include metriche di reattività e di costo infrastrutturale:
 
 \[
 \text{Detection Latency} \; (ms)
@@ -429,19 +426,14 @@ Accanto alle metriche derivate dalla matrice di confusione, il framework include
 
 \noindent definita come intervallo temporale tra esecuzione del payload e scrittura del log/evento.
 
-% \[
-% \text{Enforcement Time Difference} \; (ms)
-% \]
-
-% \noindent definita come differenza tra il tempo di blocco kernel-side di Tetragon e il tempo di mitigazione ottenuto con catena di alerting/webhook in Falco.
-
 \[
 \text{Resource Overhead} = \{\text{CPU }(\%),\; \text{RAM }(MB)\}
 \]
 
 \noindent per quantificare l'impatto dei daemon sul nodo host durante scenari di stress.
 
-In sintesi, questa sezione definisce gli obiettivi del programma di validazione: misurare accuratezza, rumore, perdita di eventi, latenza di rilevazione, differenza di tempo nell'enforcement e overhead computazionale. I risultati ottenuti costituiranno la base empirica del confronto nel capitolo successivo, riducendo il rischio di conclusioni aneddotiche e aumentando la riproducibilita dell'analisi.
+\bigskip\noindent
+I risultati ottenuti costituiranno la base del confronto nel \Cref{chap:results}, con l'obiettivo di fornire indicazioni pratiche per la scelta dello strumento più adatto a un determinato contesto operativo.
 
 \section{Configurazione dell'ambiente di test}
 
