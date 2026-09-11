@@ -210,7 +210,7 @@ Il percorso degli eventi di Tetragon è quindi strutturato in più livelli. In p
 
 Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF\footnote{BTF (BPF Type Format) serve a descrive i tipi di dati in un programma BPF/eBPF. \cite{linux-btf-docs}}. BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload. \cite{tetragon-docs,tetragon-docs-hooks}
 
-% In conclusione, mentre Falco mette al centro la flessibilità della regola e la capacità di integrazione con sistemi di sicurezza esterni, Tetragon mette al centro l'efficienza dell'osservazione e la capacità di enforcement in tempo reale. La scelta tra i due strumenti non dipende quindi solo dalla natura delle policy, ma anche dal livello di prevenzione richiesto: Falco è ideale per rilevamento, audit e risposta, Tetragon per osservabilità approfondita e mitigazione immediata delle azioni sospette. % TODO: forse rimuovere paragrafo
+% In conclusione, mentre Falco mette al centro la flessibilità della regola e la capacità di integrazione con sistemi di sicurezza esterni, Tetragon mette al centro l'efficienza dell'osservazione e la capacità di enforcement in tempo reale. La scelta tra i due strumenti non dipende quindi solo dalla natura delle policy, ma anche dal livello di prevenzione richiesto: Falco è ideale per rilevamento, audit e risposta, Tetragon per osservabilità approfondita e mitigazione immediata delle azioni sospette. % TODO: spostare in Conclusioni?
 
 
 %----------------------------------------------------------------------------------------
@@ -218,61 +218,51 @@ Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal 
 \chapter{Casi d'uso e Deployment}
 \label{chap:use-cases-deployment}
 
-Questo capitolo descrive gli scenari pratici in cui Falco e Tetragon vengono adottati, i requisiti tecnici necessari alla loro esecuzione e le principali opzioni di deployment. L'obiettivo è fornire una base operativa per scegliere lo strumento più adatto al contesto infrastrutturale e ai requisiti di sicurezza runtime.
+Questo capitolo descrive i principali casi d'uso di Falco e Tetragon, evidenziando le differenze operative e le aree di applicazione. Vengono inoltre discussi i requisiti di sistema e kernel, nonché le modalità di deployment più comuni, con particolare attenzione a host singoli, container Docker standalone e cluster Kubernetes. % TODO: da rivedere, introdurre le prove sperimentali fatte
 
 \section{Casi d'uso principali}
 \label{sec:use-cases}
 
 Pur condividendo la stessa area applicativa, Falco e Tetragon risultano ottimizzati per esigenze parzialmente diverse. Entrambi possono essere adottati in diversi scenari comuni di runtime security, nei quali è necessario osservare il comportamento dei workload e collegare gli eventi di sistema al contesto dell'ambiente cloud-native. I principali casi d'uso condivisi sono:
 \begin{itemize}
-    \item \textbf{Rilevazione di attività anomale in container e host:} osservazione di shell interattive inattese, esecuzione di binari non previsti, accessi a path sensibili e modifiche sospette al filesystem.
-    \item \textbf{Monitoraggio di compliance e hardening operativo:} verifica del rispetto di policy runtime, ad esempio relativamente all'uso di privilegi elevati, capability non autorizzate o risorse sensibili.
-    \item \textbf{Osservabilità di processi e syscall:} raccolta di eventi a livello kernel e correlazione con processi, container, pod, namespace e altri metadati del workload.
+    \item \textbf{Rilevazione di attività anomale nei container:} osservazione di shell interattive inattese, esecuzione di binari non previsti, accessi a path sensibili e modifiche sospette al filesystem.
+    \item \textbf{Verifica di conformità:} verifica del rispetto di policy runtime, ad esempio relativamente all'uso di privilegi elevati, capability non autorizzate o risorse sensibili.
+    \item \textbf{Osservabilità di processi e syscall:} raccolta di eventi a livello kernel e correlazione con processi, container, pod, namespace e altri metadati.
     \item \textbf{Supporto all'analisi e alla risposta agli incidenti:} produzione di telemetria utile per ricostruire una sequenza di eventi e attivare procedure di risposta manuali o automatizzate.
 \end{itemize}
 
-\subsection{Casi d'uso di Falco}
-All'interno degli scenari comuni, Falco è particolarmente efficace quando il requisito dominante è la detection, l'auditing e l'integrazione con processi SOC/SIEM. I casi d'uso specifici più ricorrenti includono:
+\subsection{Punti di forza di Falco}
+Falco è particolarmente efficace quando il requisito dominante è la detection, l'auditing e l'integrazione con processi SOC/SIEM. Alcuni casi d'uso specifici in cui Falco eccelle sono:
 \begin{itemize}
     \item \textbf{Alerting centralizzato:} inoltro degli eventi verso syslog, webhook, piattaforme SIEM o pipeline di incident response automatizzata.
-    \item \textbf{Analisi forense post-evento:} ricostruzione delle sequenze di eventi grazie a regole descrittive e output strutturati.
-    \item \textbf{Tuning di regole descrittive:} personalizzazione delle condizioni di rilevamento per adattarle ai workload e ridurre falsi positivi in ambienti dinamici.
+    \item \textbf{Analisi post-evento:} ricostruzione delle sequenze di eventi grazie a regole descrittive e output strutturati.
+    \item \textbf{Tuning di regole descrittive:} ampia possibilità di personalizzazione delle condizioni di rilevamento per adattarle ai workload e ridurre falsi positivi.
 \end{itemize}
+\cite{falco-use-cases,falco-docs}
 
-In sintesi, Falco è adatto quando il requisito dominante è aumentare visibilità e capacità di risposta, mantenendo elevata interoperabilità con strumenti esterni di sicurezza \cite{falco-use-cases,falco-docs}.
-
-\subsection{Casi d'uso di Tetragon}
+\subsection{Punti di forza di Tetragon}
 Tetragon è preferibile nei casi in cui, oltre alla visibilità, sia richiesta una riduzione della finestra di rischio attraverso enforcement tempestivo e filtraggio vicino alla sorgente dell'evento. I casi d'uso specifici sono:
 \begin{itemize}
-    \item \textbf{Prevenzione di azioni ad alto impatto:} blocco o terminazione di processi in presenza di condizioni vietate definite da policy.
-    \item \textbf{Enforcement kernel-first:} applicazione della risposta nel percorso di esecuzione, con l'obiettivo di ridurre la latenza tra rilevazione e mitigazione.
+    \item \textbf{Prevenzione di azioni ad alto impatto:} blocco o terminazione di processi in presenza di condizioni vietate dalle policy.
+    \item \textbf{Enforcement repentino:} applicazione della risposta nel percorso di esecuzione, con l'obiettivo di ridurre la latenza tra rilevazione e mitigazione.
     \item \textbf{Riduzione del rumore di telemetria:} selezione più precisa degli eventi rilevanti prima della consegna a \userspace.
 \end{itemize}
-
-Tetragon risulta quindi adatto quando la priorità è applicare policy con bassa latenza e logica kernel-first, a fronte di maggiori dipendenze dal contesto Linux e dal supporto eBPF/BTF \cite{tetragon-docs,tetragon-docs-hooks}.
+\cite{tetragon-docs,tetragon-docs-hooks}
 
 \bigskip\noindent
-La differenza tra i due strumenti, quindi, non riguarda soltanto gli eventi osservabili, ma soprattutto il punto della pipeline in cui la policy viene valutata e l'azione viene applicata. Entrambi possono fornire visibilità sul comportamento runtime; tuttavia, Falco è principalmente orientato alla generazione di alert, mentre Tetragon aggiunge meccanismi di enforcement più vicini alla sorgente dell'evento.
+In sintesi, entrambi gli strumenti possono fornire visibilità sul comportamento runtime; tuttavia, Falco è principalmente orientato alla generazione di alert, mentre Tetragon aggiunge meccanismi di enforcement più vicini alla sorgente dell'evento.
 
 \section{Requisiti di sistema e kernel}
 \label{sec:system-kernel-requirements}
-Entrambi gli strumenti operano principalmente su Linux, dove possono agganciarsi agli hook del kernel e sfruttare le funzionalità di osservabilità a basso livello. In termini tecnici, è necessario che il supporto eBPF sia abilitato e che siano disponibili i meccanismi di caricamento e validazione dei programmi. Inoltre, l'esecuzione richiede permessi adeguati, spesso con privilegi elevati o con profili di sicurezza specifici, e una compatibilità coerente con il runtime e l'orchestratore adottati, come Docker o Kubernetes.
+Entrambi gli strumenti operano su Linux, dove possono agganciarsi agli hook del kernel e sfruttare le funzionalità di osservabilità a basso livello. In pratica, è necessario che il supporto eBPF sia abilitato e che siano disponibili i meccanismi di caricamento e validazione dei programmi. Inoltre, l'esecuzione richiede permessi adeguati, spesso con privilegi elevati o con profili di sicurezza specifici, e una compatibilità coerente con il runtime e l'orchestratore adottati, come Docker o Kubernetes. \cite{falco-docs-getting-started,falco-docs-kernel,tetragon-docs-getting-started,tetragon-docs-install-faq}
 
 Falco può essere eseguito con diverse strategie di acquisizione eventi (driver kernel o eBPF probe), il che offre maggiore flessibilità di compatibilità su ambienti eterogenei.
+Tetragon, invece, dipende in modo più marcato dalle capacità moderne del kernel, in particolare dal supporto a BTF per un tracciamento robusto e portabile. La verifica delle funzionalità eBPF del nodo diventa perciò una fase preliminare critica e, in cluster eterogenei, eventuali differenze tra nodi possono influenzare l'uniformità e l'affidabilità delle policy. \cite{falco-docs-kernel,tetragon-docs-hooks,tetragon-docs-install-faq}
 
-Tetragon, invece, dipende in modo più marcato dalle capacità moderne del kernel, in particolare dal supporto a BTF per un tracciamento robusto e portabile. Di conseguenza, è consigliato l'uso di kernel recenti con supporto BTF disponibile; la verifica preliminare delle funzionalità eBPF del nodo diventa una fase critica prima del rollout e, nei cluster eterogenei, eventuali differenze tra nodi possono influenzare l'uniformità e l'affidabilità delle policy \cite{tetragon-docs,tetragon-docs-hooks}.
-
-\section{Deployment: host, Docker standalone e Kubernetes}
+\section{Deployment: Docker e Kubernetes}
 \label{sec:deployment-models}
 
-La scelta della modalità di deployment influenza profondamente visibilità, copertura e costo operativo.
-
-\subsection{Installazione su host}
-L'installazione diretta su host è adatta a server singoli, laboratori o ambienti di test dove è necessario controllare in modo fine dipendenze e configurazione.
-\begin{itemize}
-    \item \textbf{Falco:} installazione generalmente lineare; consente tuning rapido di regole e output locali.
-    \item \textbf{Tetragon:} richiede maggiore attenzione alla compatibilità kernel/BTF e ai privilegi necessari.
-\end{itemize}
+La scelta della modalità di deployment influenza profondamente visibilità, copertura e costo operativo. È perciò importante conoscere le differenze tra le due modalità principali: esecuzione come container Docker standalone e deployment in un cluster Kubernetes.
 
 \subsection{Deployment in container Docker standalone}
 L'esecuzione come container standalone semplifica packaging e distribuzione, ma richiede mount e capability adeguate per osservare il kernel dell'host.
