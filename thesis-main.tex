@@ -134,9 +134,6 @@ I container condividono lo stesso kernel dell'host e molte attività sensibili, 
 
 In particolare, l'osservabilità a livello runtime richiede strumenti in grado di collegare eventi di alto livello, come richieste di rete, creazione di processi o accesso a file sensibili, con le entità del cluster, come pod, container e namespace.
 
-% forse rimuovere/spostare questo paragrafo, oppure invertire le sezioni
-% L'uso di eBPF ha reso possibile un nuovo modello di sicurezza runtime per i sistemi cloud-native: grazie alla sua collocazione nel kernel, è possibile osservare eventi di sistema con maggiore granularità e ridurre il costo di trasferimento dei dati verso \userspace. Questo sposta il problema da una semplice raccolta di log a una capacità più fine di correlare comportamenti e applicare controlli in tempo reale.
-
 Dal punto di vista operativo, una strategia completa di sicurezza cloud-native dovrebbe combinare controlli preventivi con strumenti di rilevamento e risposta a runtime capaci di correlare segnali multipli e, quando necessario, applicare enforcement a bassa latenza. 
 
 Nell'ambito di questa tesi, l'attenzione è posta sulla parte di runtime security, esplorando come strumenti come Falco e Tetragon possano essere utilizzati per ottenere visibilità, rilevazione e mitigazione di comportamenti sospetti o malevoli in ambienti containerizzati.
@@ -163,28 +160,29 @@ L'architettura di eBPF può essere riassunta nella \Cref{fig:ebpf-architecture},
 \chapter{Falco e Tetragon}
 \label{chap:falco-tetragon}
 
-In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci differenti per la rilevazione e la mitigazione di comportamenti sospetti o malevoli. La differenza fondamentale risiede nella posizione in cui viene valutata la policy: Falco tende a concentrarsi sul rilevamento e sulla generazione di alert in \userspace, mentre Tetragon cerca di applicare la policy il più vicino possibile al punto di origine dell'evento, all'interno del kernel.
+In questo capitolo vengono presentati due strumenti di sicurezza runtime per ambienti cloud-native: Falco e Tetragon. Entrambi sfruttano le capacità di osservabilità offerte da eBPF, ma adottano approcci differenti per la rilevazione e la mitigazione di comportamenti sospetti o malevoli. 
 
-Questa distinzione non è soltanto concettuale, ma incide direttamente sul modello operativo, sulla latenza di risposta e sulla capacità di prevenire un'azione prima che produca effetti rilevanti. In sintesi, Falco è un sistema di detection e alerting con elevata flessibilità di integrazione, mentre Tetragon è un sistema di osservabilità e enforcement kernel-first, pensato per scenari in cui la policy deve essere applicata in tempo reale con una finestra di rischio ridotta.
+% La differenza fondamentale risiede nella posizione in cui viene valutata la policy: Falco tende a concentrarsi sul rilevamento e sulla generazione di alert in \userspace, mentre Tetragon cerca di applicare la policy il più vicino possibile al punto di origine dell'evento, all'interno del kernel.
+
+% In sintesi, Falco è un sistema di detection e alerting con elevata flessibilità di integrazione, mentre Tetragon è un sistema di osservabilità e enforcement kernel-first, pensato per scenari in cui la policy deve essere applicata in tempo reale con una finestra di rischio ridotta.
 
 \section{Falco}
 \label{sec:falco}
 
-\subsection{Che cos'è Falco}
-Falco è una piattaforma di runtime security orientata principalmente al rilevamento. Il suo obiettivo è osservare i comportamenti del sistema, correlare gli eventi con regole espresse in YAML e generare alert quando viene riconosciuto un pattern anomalo o potenzialmente dannoso. La filosofia di Falco è quella di fornire una visibilità ampia e facilmente integrabile con i sistemi di sicurezza e di incident response già esistenti: alert su stdout, syslog, webhook, file, sistemi SIEM o orchestratori di risposta automatica. \cite{falco-docs}
+Falco è una piattaforma di runtime security orientata principalmente al rilevamento. Il suo obiettivo è osservare i comportamenti del sistema, correlare gli eventi con delle poilcy e generare alert quando viene riconosciuto un pattern anomalo o potenzialmente dannoso. La filosofia di Falco è quella di fornire una visibilità ampia e facilmente integrabile con i sistemi di sicurezza, alerting e incident response già esistenti. \cite{falco-docs}
 
-Dal punto di vista operazionale, Falco è particolarmente adatto a scenari in cui è necessario monitorare processi, syscall, creazione di file e accessi sensibili in ambienti dinamici come Kubernetes. La sua forza risiede nella capacità di trasformare eventi di basso livello in segnali di sicurezza di alto livello, mantenendo una regola di correlazione che separa la raccolta dei dati dalla logica di rilevamento. In questo senso, Falco è fortemente orientato al detection e alla risposta umana o automatizzata, più che all'enforcement diretto a livello kernel.
+% TODO: aggiungere qualche altra informazione sul contesto di Falco, ad esempio la sua origine come progetto CNCF.
 
 \subsection{Architettura di Falco}
 L'architettura di Falco è organizzata in una pipeline di raccolta, normalizzazione e valutazione delle policy. A livello di input, il sistema acquisisce eventi provenienti da sorgenti diverse: syscall del kernel, eventi di container runtime, metadati di orchestrazione e, in alcune configurazioni, dati provenienti da plugin esterni. La raccolta avviene mediante un componente di acquisizione che permette di esporre un flusso uniforme di eventi, indipendentemente dalla loro origine concreta. In pratica, il kernel continua a essere la fonte primaria del segnale, ma Falco arricchisce l'evento con contesto applicativo e di orchestrazione. \cite{falco-docs-event-src,falco-docs-supported-events,falco-about}
 
-L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone \userspace, dove il rule engine verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e includono campi come tipo di syscall, nome del processo, path del file, namespace, container, username e altri attributi di contesto. Quando una regola viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. La scelta di effettuare la valutazione in \userspace è funzionale alla flessibilità del sistema: il codice di rilevamento può essere aggiornato e modificato senza dover ricaricare o adattare il kernel dell'host. \cite{falco-docs-event-src,falco-docs-rules}
+L'evento non viene valutato direttamente nel kernel, ma viene inviato a un demone \userspace, dove il motore di regole verifica le condizioni definite nelle policy. Le regole di Falco sono formulate in YAML e permettono di specificare le condizioni di attivazione, l'output da produrre e il livello di priorità. Quando una di queste regole viene soddisfatta, Falco genera un alert strutturato e lo inoltra a uno o più output configurati. \cite{falco-docs-event-src,falco-docs-rules}
 
 Questa progettazione presenta vantaggi chiari in termini di semplicità operativa e compatibilità, ma implica anche una logica prettamente reattiva. L'evento viene catturato e valutato dopo che la syscall o l'azione critica è già stata eseguita; quindi Falco è ideale per analisi forense, monitoraggio continuo, alerting e automazione, ma non per bloccare l'azione nel punto esatto in cui si verifica. La sua architettura è quindi particolarmente efficace in scenari in cui il requisito principale è la visibilità ambientale e la capacità di trasformare i segnali di sistema in azioni di risposta organizzate.
 
 \begin{figure}
     \centering
-    \includegraphics[width=\linewidth]{figures/falco_arch_ext.pdf}
+    \includegraphics[width=0.9\linewidth]{figures/falco_arch_ext.pdf}
     \caption{Architettura di Falco. (Fonte immagine: \cite{falco-ext-ouputs})}
     \label{fig:falco-architecture}
 \end{figure}
@@ -192,7 +190,6 @@ Questa progettazione presenta vantaggi chiari in termini di semplicità operativ
 \section{Tetragon}
 \label{sec:tetragon}
 
-\subsection{Che cos'è Tetragon}
 Tetragon è un progetto di Cilium\footnote{Cilium è un progetto open source per networking e sicurezza in ambienti cloud-native \cite{cilium}.} dedicato alla security observability e al runtime enforcement a livello kernel. A differenza di Falco, il modello di Tetragon non si limita a osservare gli eventi per poi valutarli fuori dal percorso di esecuzione, ma cerca di integrare il controllo della policy direttamente nel flusso dell'operazione da monitorare. Il suo obiettivo è ridurre la finestra temporale tra l'osservazione di una condotta sospetta e l'applicazione di una risposta, minimizzando la possibilità che un'azione dannosa produca effetti permanenti prima di essere fermata.
 
 In un ambiente cloud-native, dove i workload sono effimeri, distribuiti e spesso condividono lo stesso kernel dell'host, l'enforcement a basso livello è molto rilevante. Tetragon osserva processi, syscall, file, rete e contesto di esecuzione del workload, correlandoli con le informazioni Kubernetes e con l'identità del pod. Quando una policy viene violata, il sistema non si limita a produrre un avviso: può generare un'azione di mitigazione immediata, ad esempio interrompendo un processo o bloccando un'operazione prima che compia un effetto significativo.
