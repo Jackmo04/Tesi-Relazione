@@ -285,7 +285,7 @@ Per eseguire il cluster Kubernetes di test è stato utilizzato \texttt{minikube}
 
 Si precisa, infine, che in questa sezione Falco e Tetragon vengono confrontati esclusivamente in termini di facilità di installazione, configurazione e gestione operativa, poiché la valutazione dell'efficacia delle policy e delle performance è oggetto del \Cref{chap:testing}.
 
-\subsection{Definizione delle policy}
+\subsection{Confronto sulle definizioni delle policy}
 \label{sec:rules-and-policies}
 
 La configurazione delle policy rappresenta il punto in cui le capacità di osservazione dei due strumenti vengono trasformate in decisioni di sicurezza. In Falco una regola combina generalmente una condizione su degli eventi, un messaggio di output, una priorità e un insieme di tag. La condizione può utilizzare sia il tipo di operazione sia il contesto arricchito del processo e del container. Il Listato \ref{lst:falco-rules-example} contiene tre regole rappresentative: la rilevazione di una shell interattiva, la scrittura sotto una directory sensibile e l'esecuzione di un binario introdotto nel layer scrivibile del container.
@@ -318,16 +318,16 @@ Tetragon esprime intenzioni analoghe attraverso risorse YAML \textit{TracingPoli
     label={lst:tetragon-policy-writable-paths}
 ]{listings/execve-in-writable-paths.yaml}
 
-Nella prima policy (Listato \ref{lst:tetragon-policy-shell-deployment}) si può vedere l'utilizzo del filtro \texttt{podSelector} per escludere i processi dell'host dall'applicazione della regola. L'hook \texttt{sys\_execve} permette di osservare l'esecuzione di un processo e di estrarre il percorso del binario eseguito, che viene confrontato con il selettore \texttt{matchArgs} specificato.
+Nella prima policy (Listato~\ref{lst:tetragon-policy-shell-deployment}) si può vedere l'utilizzo del filtro \texttt{podSelector} per escludere i processi dell'host dall'applicazione della regola. L'hook \texttt{sys\_execve} permette di osservare l'esecuzione di un processo e di estrarre il percorso del binario eseguito, che viene confrontato con il selettore \texttt{matchArgs} specificato.
 
-La policy per il rilevamento di scritture in \texttt{/etc/} (Listato \ref{lst:tetragon-policy-etc-write}) utilizza l'hook \texttt{security\_file\_permission} che permette di osservare diverse operazioni sui file, invece che una singola syscall. Il filtro \texttt{matchArgs} seleziona le operazioni con flag \texttt{MAY\_WRITE} e percorso sotto \texttt{/etc/}.
+La policy per il rilevamento di scritture in \texttt{/etc/} (Listato~\ref{lst:tetragon-policy-etc-write}) utilizza l'hook \texttt{security\_file\_permission} che permette di osservare diverse operazioni sui file, invece che una singola syscall. Il filtro \texttt{matchArgs} seleziona le operazioni con flag \texttt{MAY\_WRITE} e percorso sotto \texttt{/etc/}.
 
-Per quanto riguarda la terza policy (Listato \ref{lst:tetragon-policy-writable-paths}), invece, la differenza rispetto a falco è molto più sostanziale: mentre Falco può verificare direttamente se l'eseguibile proviene dall'upper layer del filesystem overlay, Tetragon non riceve un attributo equivalente attraverso \texttt{sys\_execve}. In questo caso, la policy Tetragon si basa su un'approssimazione dei percorsi scrivibili, come \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. Ciò significa che la policy di Tetragon rileva l'esecuzione di binari in directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory.
+Per quanto riguarda la terza policy (Listato~\ref{lst:tetragon-policy-writable-paths}), invece, la differenza rispetto a falco è molto più sostanziale: mentre Falco può verificare direttamente se l'eseguibile proviene dall'upper layer del filesystem overlay, Tetragon non riceve un attributo equivalente attraverso \texttt{sys\_execve}. In questo caso, la policy Tetragon si basa su un'approssimazione dei percorsi scrivibili, come \texttt{/tmp/}, \texttt{/dev/shm/}, \texttt{/var/tmp/} e \texttt{/run/}. Ciò significa che la policy di Tetragon rileva l'esecuzione di binari in directory considerate scrivibili, ma non tutti i binari aggiunti all'upper layer e, viceversa, può rilevare un file legittimo collocato in una di quelle directory.
 
 Le tre coppie di policy mostrano differenze di espressività. La sintassi Falco è più strutturata e intuitiva per chi deve combinare evento, contesto, output e severità in una regola leggibile. La sintassi Tetragon richiede invece di conoscere l'hook corretto, la firma della syscall o della funzione kernel, gli indici degli argomenti e i tipi supportati dai programmi eBPF. Il caso della shell è il più evidente: Falco verifica direttamente \texttt{proc.tty != 0}, mentre la policy Tetragon basata su \texttt{sys\_execve} conosce il percorso del binario ma non la semantica della sessione. Per ottenere un comportamento equivalente servirebbero correlazioni o ulteriori segnali, con una complessità maggiore. Tetragon offre in cambio filtraggio vicino alla sorgente e la possibilità di associare azioni di enforcement. La definizione deve quindi bilanciare copertura e selettività: condizioni troppo ampie aumentano falsi positivi e volume di telemetria, mentre condizioni troppo restrittive possono creare punti ciechi.
 
-\subsection{Risultati del confronto}
-I criteri di confronto considerati e le relative considerazioni per ciascuno strumento sono riportati nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation}.
+\subsection{Risultati del confronto operativo}
+Nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configuration-comparison-operation} vengono riassunte le principali differenze operative tra Falco e Tetragon, considerando anche aspetti non toccati dalle sezioni precedenti, ma emersi durante le prove di installazione, configurazione e tuning.
 
 \begin{table}[htbp]
     \centering
@@ -339,15 +339,15 @@ I criteri di confronto considerati e le relative considerazioni per ciascuno str
         \hline
         \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
         \hline
-        Installazione & Generalmente semplice tramite pacchetti, container o chart Helm. In Kubernetes è normalmente distribuito come DaemonSet. & Generalmente distribuito come agente per nodo, spesso tramite chart Helm. L'installazione è semplice in un ambiente compatibile, ma più sensibile alla configurazione del kernel. \\
+        Installazione & Generalmente semplice tramite pacchetti, container o chart Helm. In Kubernetes è normalmente distribuito come DaemonSet. & Normalmente distribuito come agente per nodo, spesso tramite chart Helm. L'installazione è semplice in un ambiente compatibile, ma più sensibile alla configurazione del kernel. \\
         \hline
         Prerequisiti infrastrutturali & Richiede Linux, accesso agli eventi del kernel e privilegi adeguati. La disponibilità di un driver compatibile o della eBPF probe influenza la procedura di setup. & Richiede Linux con funzionalità eBPF compatibili; il supporto BTF e gli hook disponibili sono particolarmente importanti per il tracing e l'enforcement. \\
         \hline
-        Configurazione iniziale & Di complessità contenuta per il monitoraggio di base, ma può richiedere la selezione della sorgente degli eventi, degli output e delle regole da attivare. & Di complessità più elevata, perché oltre all'agente è necessario definire gli hook, gli eventi e, quando previsto, le azioni di enforcement. \\
+        Configurazione iniziale & Di complessità contenuta per il monitoraggio di base, ma può richiedere la selezione della sorgente degli eventi, degli output e delle regole da attivare. & Di complessità più elevata poiché oltre all'agente è necessario definire le \textit{TracingPolicy} che si vuole avere. \\
         \hline
-        Modalità di configurazione & File YAML per le regole e la configurazione dell'agente; supporta output e integrazioni verso sistemi esterni. & Risorse Kubernetes YAML, come \textit{TracingPolicy} e \textit{ClusterTracingPolicy}, oltre ai parametri dell'agente e del deployment. \\
+        Modalità di configurazione & File YAML per le regole e la configurazione dell'agente; supporta output e integrazioni verso numerosi sistemi esterni. & Risorse Kubernetes YAML, come \textit{TracingPolicy} e \textit{ClusterTracingPolicy}, oltre ai parametri dell'agente e del deployment. \\
         \hline
-        Curva di apprendimento delle policy & Sintassi dichiarativa orientata alla condizione dell'evento e al contesto; nel complesso è relativamente accessibile. & Richiede familiarità con eventi di processo e syscall, hook eBPF, contesto Kubernetes e distinzione tra osservazione ed enforcement. \\
+        Curva di apprendimento delle policy & Sintassi dichiarativa orientata alla condizione dell'evento e al contesto; nel complesso è di facile apprendimento. & Richiede maggiore familiarità con eventi di processo e syscall, hook eBPF e contesto Kubernetes. \\
         \hline
     \end{tabularx}
 \end{table}
@@ -362,30 +362,22 @@ I criteri di confronto considerati e le relative considerazioni per ciascuno str
         \hline
         \textbf{Aspetto} & \textbf{Falco} & \textbf{Tetragon} \\
         \hline
-        Tuning e falsi positivi & Il tuning delle regole è spesso necessario per ridurre il rumore in workload dinamici; le eccezioni possono essere gestite nella logica delle regole. & Il filtraggio vicino alla sorgente può ridurre la telemetria non necessaria, ma policy troppo ampie o azioni di blocco non verificate possono produrre regressioni operative. \\
+        Tuning e falsi positivi & Il tuning delle regole è spesso necessario per ridurre il rumore; le eccezioni possono essere gestite nella logica delle regole. & Il filtraggio vicino alla sorgente può ridurre la telemetria non necessaria, ma policy troppo ampie o azioni di blocco non verificate possono produrre regressioni operative. \\
         \hline
         Integrazione & Ampia interoperabilità con syslog, webhook, file, SIEM e pipeline di risposta. & Integrazione naturale con Kubernetes e l'ecosistema Cilium; l'output può essere raccolto e inoltrato attraverso componenti esterni. \\
         \hline
-        Aggiornamento e gestione & Le regole possono essere modificate senza riprogettare il programma kernel; la gestione è quindi relativamente flessibile. & Le policy sono modificabili in modo dichiarativo, ma la loro efficacia continua a dipendere dalla compatibilità tra kernel, hook e versione dell'agente. \\
+        Aggiornamento e gestione & [Falco] & [Tetragon] \\ % TODO: write this
         \hline
-        Impatto operativo & Il passaggio degli eventi al componente \userspace può aumentare il volume di telemetria e il costo del processamento, in funzione delle regole attive. & Il filtraggio kernel-side può ridurre il volume trasferito a \userspace; il costo dipende comunque dal numero di hook e dalla complessità delle policy. \\
-        \hline
-        Enforcement & Principalmente orientato a detection, alerting e risposta successiva all'evento. & Progettato per supportare enforcement a bassa latenza, con possibilità di terminare processi o bloccare azioni secondo la policy. \\
+        Enforcement & Orientato alla detection, alerting e risposta successiva all'evento; non permette enforcement diretto. & Progettato per supportare enforcement a bassa latenza, con possibilità di terminare processi o bloccare azioni secondo la policy. \\
         \hline
     \end{tabularx}
 \end{table}
-
-\FloatBarrier
 
 Nel complesso, Falco presenta una barriera di ingresso più contenuta quando l'obiettivo iniziale è ottenere visibilità e generare alert. La disponibilità di regole e integrazioni già predisposte facilita l'inserimento in pipeline di monitoring e incident response; rimane tuttavia necessario un periodo di tuning per adattare le regole al comportamento legittimo dei workload.
 
 Tetragon richiede invece una preparazione più attenta dell'ambiente, soprattutto quando si utilizzano policy contestualizzate o azioni di enforcement. Questa maggiore complessità iniziale è compensata dalla possibilità di eseguire filtraggio e controllo più vicini all'evento, con una riduzione della finestra di rischio e una granularità elevata sulle operazioni di processo e syscall.
 
-La scelta non è quindi riconducibile a una semplice contrapposizione tra uno strumento ``facile'' e uno ``difficile''. Falco è generalmente più adatto a un'adozione progressiva centrata su detection e interoperabilità, mentre Tetragon è più indicato quando il team dispone di competenze Linux/eBPF e il requisito di enforcement giustifica un investimento maggiore nella configurazione e nella validazione delle policy.
-
-\bigskip\noindent
-In sintesi, Falco e Tetragon non vanno considerati necessariamente alternativi: in molti contesti possono essere complementari. Falco eccelle come layer di detection, auditing e integrazione con pipeline di risposta; Tetragon eccelle dove è richiesta enforcement kernel-first con minima latenza. La scelta finale dipende dal trade-off tra facilità di adozione, maturità operativa del team e livello di prevenzione richiesto.
-
+La scelta non è quindi riconducibile a una semplice contrapposizione tra uno strumento ``facile'' e uno ``difficile''. Falco è generalmente più adatto a un'adozione progressiva centrata su detection e interoperabilità, mentre Tetragon è più indicato quando il team dispone di competenze Linux di basso livello e il requisito di enforcement giustifica un investimento maggiore nella configurazione e nella validazione delle policy. È perciò da considerare come valida la possibilità di combinare i due strumenti, sfruttando i pro e i contro di ciascuno per ottenere un sistema di runtime security più completo.
 
 %----------------------------------------------------------------------------------------
 
