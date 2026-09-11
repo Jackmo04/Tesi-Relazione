@@ -430,33 +430,28 @@ Accanto alle metriche derivate dalla matrice di confusione, il framework include
 \text{Resource Overhead} = \{\text{CPU }(\%),\; \text{RAM }(MB)\}
 \]
 
-\noindent per quantificare l'impatto dei daemon sul nodo host durante scenari di stress.
+\noindent per quantificare l'impatto sull'host degli agenti durante scenari di stress.
 
 \bigskip\noindent
 I risultati ottenuti costituiranno la base del confronto nel \Cref{chap:results}, con l'obiettivo di fornire indicazioni pratiche per la scelta dello strumento più adatto a un determinato contesto operativo.
 
 \section{Configurazione dell'ambiente di test}
 
-L'ambiente sperimentale è stato predisposto in una \ac{vm} dedicata con le seguenti caratteristiche (riportate a titolo di documentazione e riproducibilita):
+L'ambiente sperimentale è stato predisposto in una macchina virtuale dedicata con le seguenti caratteristiche (riportate a titolo di documentazione e riproducibilita):
 \begin{itemize}
     \item Hypervisor: VirtualBox 7.2.2;
     \item Sistema operativo: Ubuntu 26.04.1 LTS;
     \item Kernel: Linux 7.0.0-29-generic;
-    \item Architettura: x86\_64;
     \item CPU: 4 vCPU 3.0 GHz;
     \item RAM: 16 GB DDR4;
 \end{itemize}
 
-La scelta di eseguire i test in una \ac{vm} consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
+\noindent
+La scelta di eseguire i test in una VM consente di isolare il piano sperimentale dal sistema host, ridurre variabili esterne e ripetere in modo controllato le stesse condizioni di carico e configurazione.
 
-Per il deployment è stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di:
-\begin{itemize}
-    \item mantenere parità di contesto di esecuzione (stesso nodo, stesso kernel, stesso runtime);
-    \item versionare in modo esplicito immagini e parametri di avvio;
-    \item riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
-\end{itemize}
+Per il deployment è stata adottata una configurazione Docker Compose con due servizi separati, uno per Falco e uno per Tetragon. Questo approccio permette di mantenere parità di contesto di esecuzione (stesso runtime), versionare in modo esplicito immagini e parametri di avvio e riavviare rapidamente l'intero stack sperimentale tra una campagna di test e la successiva.
 
-Una versione ridotta della configurazione utilizzata è riportata nel \Cref{lst:compose-falco-tetragon}.
+Una versione ridotta della configurazione utilizzata è riportata nel Listato~\ref{lst:compose-falco-tetragon}.
 
 \lstinputlisting[
     language=docker-compose,
@@ -464,20 +459,11 @@ Una versione ridotta della configurazione utilizzata è riportata nel \Cref{lst:
     label={lst:compose-falco-tetragon}
 ]{listings/docker-compose.yaml}
 
-Come si può osservare, entrambi i servizi sono eseguiti con privilegi elevati e mount di namespace host (PID, cgroup e rete). Questo è necessario per consentire l'accesso agli hook del kernel e alle informazioni di contesto dei container.
+Da questa configurazione si può notare come nel comando di avvio di Tetragon è presente l'opzione \texttt{--export-allowlist}; essa serve a limitare gli eventi scritti nei log ai soli tipi indicati. La sua funzione, ai fini del nostro programma, è quella di rendere il confronto più omogeneo con Falco, che produce un alert quando una regola viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata, come invece succede con Tetragon. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
 
-I due servizi sono stati mantenuti attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento. La raccolta simultanea è possibile perché i programmi eBPF possono essere agganciati contemporaneamente ai relativi hook del kernel e il sottosistema gestisce l'esecuzione concorrente dei programmi associati agli eventi. Nel perimetro di questa valutazione Tetragon è stato utilizzato in modalità osservativa: non sono state configurate azioni di enforcement che terminassero i processi o modificassero il comportamento dei test. In questo modo entrambi gli strumenti osservano gli stessi workload senza che Tetragon alteri il campione sperimentale o impedisca a Falco di ricevere gli eventi successivi.
+Si precisa, inoltre, che con questa configurazione entrambi i servizi sono attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento. La raccolta simultanea è possibile poiché il sottosistema eBPF consente l'esecuzione concorrente di più programmi, non dovendosi perciò preoccupare di conflitti e race-conditions. 
 
-Inoltre, sia Falco che Tetragon scrivono i propri log in formato JSON nella directory (\texttt{./logs}), in modo da rendere confrontabili i dati raccolti e semplificare la fase di post-processing (vedi \Cref{sec:testing-program-design}). 
-La scelta di un formato strutturato facilita la normalizzazione dei campi, riducendo il rischio di errori di parsing o interpretazione.
-
-Nel comando di avvio di Tetragon è inoltre presente l'opzione \texttt{--export-}\allowbreak\texttt{allowlist}. Essa limita gli eventi inoltrati all'exporter ai soli tipi \texttt{PROCESS\_}\allowbreak\texttt{KPROBE}, \texttt{PROCESS\_}\allowbreak\texttt{TRACEPOINT} e \texttt{PROCESS\_LSM}. L'allowlist non disattiva gli hook né modifica le policy caricate: agisce sul flusso di eventi esportati verso il file di log. La sua funzione, in questo esperimento, è rendere il confronto più omogeneo con Falco, che produce un alert quando una regola di detection viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
-
-Inoltre, nel servizio Tetragon è stata montata la directory \texttt{tetragon-policies} contenente le policy di tracing/enforcement da caricare a runtime. Questo consente di modificare le regole senza dover ricostruire l'immagine del container, aumentando la flessibilità della sperimentazione.
-
-Infine, si precisa che i mount e i privilegi adottati in entrambi i servizi seguono le indicazioni operative riportate nella documentazione ufficiale dei due strumenti, adattate al perimetro sperimentale di questa tesi \cite{falco-docs-install,tetragon-docs-install}.
-
-Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalla policy attiva. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto empirico robusto tra i due strumenti nelle medesime condizioni operative.
+Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalle policy attive. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto robusto e riproducibile nelle medesime condizioni operative.
 
 \section{Progettazione del programma di testing automatizzato}
 \label{sec:testing-program-design}
@@ -524,6 +510,9 @@ Sono state considerate anche strategie alternative, come l'associazione basata s
 
 \subsection{Definizione delle TracingPolicy}
 \label{sec:tracing-policy-design}
+
+% aggiungere da qualche parte
+% Nel perimetro di questa valutazione, Tetragon è stato utilizzato in modalità osservativa: non sono state configurate azioni di enforcement che terminassero i processi o modificassero il comportamento dei test. In questo modo entrambi gli strumenti osservano gli stessi workload senza che Tetragon alteri il campione sperimentale o impedisca a Falco di ricevere gli eventi successivi.
 
 Le TracingPolicy di Tetragon sono state definite partendo dagli eventi che si intendeva verificare nella suite e non dalla semplice enumerazione di tutte le syscall disponibili. Il criterio di progettazione è stato mantenere un numero contenuto di hook e condizioni specifiche, così da limitare i falsi positivi e il volume di telemetria, evitando al tempo stesso punti ciechi rispetto agli scenari scelti. Le policy usate nel test sono quindi mirate a operazioni osservabili e interpretabili, come l'esecuzione di shell, la scrittura in directory sensibili, la modifica delle capability, le connessioni TCP e l'esecuzione da percorsi temporanei.
 
