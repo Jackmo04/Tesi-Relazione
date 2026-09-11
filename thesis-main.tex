@@ -381,7 +381,7 @@ La scelta non è quindi riconducibile a una semplice contrapposizione tra uno st
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Testing e Validazione}
+\chapter{Testing automatizzato}
 \label{chap:testing}
 In questo capitolo vengono descritte le metodologie e gli strumenti utilizzati per la validazione sperimentale di Falco e Tetragon, con l'obiettivo di misurare dati quantitativi e confrontabili.
 
@@ -461,17 +461,14 @@ Una versione ridotta della configurazione utilizzata è riportata nel Listato~\r
 
 Da questa configurazione si può notare come nel comando di avvio di Tetragon è presente l'opzione \texttt{--export-allowlist}; essa serve a limitare gli eventi scritti nei log ai soli tipi indicati. La sua funzione, ai fini del nostro programma, è quella di rendere il confronto più omogeneo con Falco, che produce un alert quando una regola viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata, come invece succede con Tetragon. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
 
-Si precisa, inoltre, che con questa configurazione entrambi i servizi sono attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento. La raccolta simultanea è possibile poiché il sottosistema eBPF consente l'esecuzione concorrente di più programmi, non dovendosi perciò preoccupare di conflitti e race-conditions. 
+Si precisa, inoltre, che con questa configurazione entrambi i servizi sono attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento.
 
 Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalle policy attive. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto robusto e riproducibile nelle medesime condizioni operative.
 
-\section{Progettazione del programma di testing automatizzato}
-\label{sec:testing-program-design}
+\subsection{Selezione dei test}
+\label{sec:test-suite}
 
 La progettazione della suite precede l'esecuzione automatizzata e ne definisce il significato sperimentale. Per questo motivo i test sono stati organizzati in tre gruppi: scenari generici costruiti per verificare le policy definite nell'ambiente, test Atomic Red Team selezionati per la loro associazione a tecniche MITRE ATT\&CK e scenari di carico destinati a valutare il comportamento della telemetria in condizioni di stress. Questa distinzione permette di non confondere la capacità di riconoscere una tecnica avversaria con la capacità, altrettanto importante, di mantenere continuità e qualità della raccolta sotto carico.
-
-\subsection{Selezione degli scenari di test}
-\label{sec:test-selection}
 
 Gli scenari generici sono stati scelti per coprire le operazioni direttamente osservabili dalle policy di Falco e Tetragon. Il gruppo comprende l'avvio di una shell, l'esecuzione di un binario da una directory temporanea, la modifica di \texttt{/etc/shadow}, l'accesso a file sensibili, una connessione verso un indirizzo esterno e l'uso di un nome di processo fuorviante. Sono inoltre presenti test di discovery relativi all'ambiente Docker e alle informazioni del cgroup, insieme a casi benigni che producono attività realistiche, quali il riavvio di un servizio web, una richiesta HTTPS, il salvataggio di Redis e la copia compressa di \texttt{/etc}. I casi benigni costituiscono il riferimento per la stima dei falsi positivi e impediscono di valutare la detection esclusivamente su attività malevole.
 
@@ -499,15 +496,6 @@ Per rendere concreto il contenuto della suite, il \Cref{lst:test-examples} ripor
     label={lst:test-examples}
 ]{listings/test-examples.json}
 
-\subsection{Isolamento dei test e correlazione degli eventi}
-\label{sec:test-isolation-correlation}
-
-Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato prima dell'avvio e rimosso al termine. Questa scelta impedisce che file creati, processi residui, modifiche al filesystem o altri effetti collaterali di un test influenzino quello successivo. L'isolamento è particolarmente importante quando una campagna alterna test malevoli, casi benigni e workload di stress: senza una nuova istanza, un processo lasciato attivo o un artefatto temporaneo potrebbe produrre eventi attribuiti al test sbagliato.
-
-Il container usa-e-getta semplifica inoltre la correlazione tra azione eseguita ed eventi osservati. Al momento della creazione, Docker assegna un identificativo univoco; il runner conserva l'identificativo abbreviato e lo associa al risultato del test. Falco riporta l'identificativo del container nei campi di contesto dell'evento, mentre Tetragon lo espone nei dati relativi al processo. Il collector normalizza entrambi i valori allo stesso formato e il programma seleziona gli eventi il cui identificativo coincide con quello restituito dal runner. In questo modo il criterio di appartenenza è indipendente dal nome del processo, dal comando concreto o dall'ordine di arrivo dei log.
-
-Sono state considerate anche strategie alternative, come l'associazione basata sul comando eseguito, sul nome dell'immagine, sul timestamp o sull'identificativo del processo. Questi criteri sono meno robusti nel contesto adottato: lo stesso comando può generare più processi, un'immagine può essere riutilizzata da test diversi, i timestamp dei log possono differire per precisione e un PID può essere riutilizzato dopo la terminazione del processo. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria. L'uso dell'identificativo abbreviato è sufficiente nel contesto Docker della sperimentazione, poiché il prefisso utilizzato mantiene l'univocità tra container contemporanei.
-
 \subsection{Definizione delle TracingPolicy}
 \label{sec:tracing-policy-design}
 
@@ -525,6 +513,20 @@ Un esempio è la policy per l'esecuzione di shell riportata nel \Cref{lst:shell-
 ]{listings/shell-execution.yaml}
 
 Questa impostazione comporta un compromesso: una policy più selettiva riduce il rumore ma può non osservare varianti non incluse nei selettori, mentre una policy più ampia aumenta la copertura al costo di più eventi e potenziali falsi positivi. La valutazione sperimentale mantiene quindi separate la scelta della policy e la misura della detection: un test è considerato rilevato solo quando la telemetria prodotta soddisfa il criterio di correlazione, non semplicemente perché esiste una policy teoricamente compatibile.
+
+\section{Progettazione del programma di testing}
+\label{sec:testing-program-design}
+
+In questa sezione vengono descritte le scelte metodologiche e le motivazioni alla base della progettazione del programma di test, ponendo anche l'accento sulle considerazioni relative all'implementazione e all'uso degli strumenti di telemetria.
+
+\subsection{Isolamento dei test e correlazione degli eventi}
+\label{sec:test-isolation-correlation}
+
+Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato prima dell'avvio e rimosso al termine. Questa scelta impedisce che file creati, processi residui, modifiche al filesystem o altri effetti collaterali di un test influenzino quello successivo. L'isolamento è particolarmente importante quando una campagna alterna test malevoli, casi benigni e workload di stress: senza una nuova istanza, un processo lasciato attivo o un artefatto temporaneo potrebbe produrre eventi attribuiti al test sbagliato.
+
+Il container usa-e-getta semplifica inoltre la correlazione tra azione eseguita ed eventi osservati. Al momento della creazione, Docker assegna un identificativo univoco; il runner conserva l'identificativo abbreviato e lo associa al risultato del test. Falco riporta l'identificativo del container nei campi di contesto dell'evento, mentre Tetragon lo espone nei dati relativi al processo. Il collector normalizza entrambi i valori allo stesso formato e il programma seleziona gli eventi il cui identificativo coincide con quello restituito dal runner. In questo modo il criterio di appartenenza è indipendente dal nome del processo, dal comando concreto o dall'ordine di arrivo dei log.
+
+Sono state considerate anche strategie alternative, come l'associazione basata sul comando eseguito, sul nome dell'immagine, sul timestamp o sull'identificativo del processo. Questi criteri sono meno robusti nel contesto adottato: lo stesso comando può generare più processi, un'immagine può essere riutilizzata da test diversi, i timestamp dei log possono differire per precisione e un PID può essere riutilizzato dopo la terminazione del processo. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria. L'uso dell'identificativo abbreviato è sufficiente nel contesto Docker della sperimentazione, poiché il prefisso utilizzato mantiene l'univocità tra container contemporanei.
 
 Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di questi scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
 
