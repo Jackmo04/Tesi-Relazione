@@ -173,7 +173,7 @@ In questo capitolo vengono presentati due strumenti di sicurezza runtime per amb
 
 Falco è una piattaforma di runtime security orientata principalmente al rilevamento. Il suo obiettivo è osservare i comportamenti del sistema, correlare gli eventi con delle poilcy e generare alert quando viene riconosciuto un pattern anomalo o potenzialmente dannoso. La filosofia di Falco è quella di fornire una visibilità ampia e facilmente integrabile con i sistemi di sicurezza, alerting e incident response già esistenti. \cite{falco-docs}
 
-% TODO: aggiungere qualche altra informazione sul contesto di Falco, ad esempio la sua origine come progetto CNCF.
+% TODO MAYBE: aggiungere qualche altra informazione generale
 
 \subsection{Architettura di Falco}
 L'architettura di Falco è organizzata in una pipeline di raccolta, normalizzazione e valutazione delle policy. A livello di input, il sistema acquisisce eventi provenienti da sorgenti diverse: syscall del kernel, eventi di container runtime, metadati di orchestrazione e, in alcune configurazioni, dati provenienti da plugin esterni. La raccolta avviene mediante un componente di acquisizione che permette di esporre un flusso uniforme di eventi, indipendentemente dalla loro origine concreta. In pratica, il kernel continua a essere la fonte primaria del segnale, ma Falco arricchisce l'evento con contesto applicativo e di orchestrazione. \cite{falco-docs-event-src,falco-docs-supported-events,falco-about}
@@ -212,15 +212,12 @@ Il percorso degli eventi di Tetragon è quindi strutturato in più livelli. In p
 
 Un elemento importante dell'architettura di Tetragon è la forte dipendenza dal contesto del sistema operativo e dall'uso di metadati del kernel, tra cui il supporto a BTF\footnote{BTF (BPF Type Format) serve a descrive i tipi di dati in un programma BPF/eBPF. \cite{linux-btf-docs}}. BTF consente al programma eBPF di accedere in modo più robusto a strutture e tipi di dati del kernel, migliorando l'affidabilità del tracing e la portabilità tra kernel con configurazioni simili. Questa caratteristica rende Tetragon particolarmente adatto a ambienti Linux moderni in cui sono richieste policy precise e sensibili al contesto del workload. \cite{tetragon-docs,tetragon-docs-hooks}
 
-% In conclusione, mentre Falco mette al centro la flessibilità della regola e la capacità di integrazione con sistemi di sicurezza esterni, Tetragon mette al centro l'efficienza dell'osservazione e la capacità di enforcement in tempo reale. La scelta tra i due strumenti non dipende quindi solo dalla natura delle policy, ma anche dal livello di prevenzione richiesto: Falco è ideale per rilevamento, audit e risposta, Tetragon per osservabilità approfondita e mitigazione immediata delle azioni sospette. % TODO: spostare in Conclusioni?
-
-
 %----------------------------------------------------------------------------------------
 
 \chapter{Casi d'uso e Deployment}
 \label{chap:use-cases-deployment}
 
-Questo capitolo descrive i principali casi d'uso di Falco e Tetragon, evidenziando le differenze operative e le aree di applicazione. Vengono inoltre discussi i requisiti di sistema e kernel, nonché le modalità di deployment più comuni, con particolare attenzione a host singoli, container Docker standalone e cluster Kubernetes. % TODO: da rivedere, introdurre le prove sperimentali fatte
+Questo capitolo descrive i principali casi d'uso di Falco e Tetragon, evidenziando le differenze operative e le aree di applicazione. Vengono inoltre discussi i requisiti di sistema e kernel, nonché le modalità di deployment più comuni, ossia container Docker e cluster Kubernetes.
 
 \section{Casi d'uso principali}
 \label{sec:use-cases}
@@ -367,8 +364,6 @@ Nelle Tabelle~\ref{tab:configuration-comparison-installation} e~\ref{tab:configu
         Tuning e falsi positivi & Il tuning delle regole è spesso necessario per ridurre il rumore; le eccezioni possono essere gestite nella logica delle regole. & Il filtraggio vicino alla sorgente può ridurre la telemetria non necessaria, ma policy troppo ampie o azioni di blocco non verificate possono produrre regressioni operative. \\
         \hline
         Integrazione & Ampia interoperabilità con syslog, webhook, file, SIEM e pipeline di risposta. & Integrazione naturale con Kubernetes e l'ecosistema Cilium; l'output può essere raccolto e inoltrato attraverso componenti esterni. \\
-        \hline
-        Aggiornamento e gestione & [Falco] & [Tetragon] \\ % TODO: write this
         \hline
         Enforcement & Orientato alla detection, alerting e risposta successiva all'evento; non permette enforcement diretto. & Progettato per supportare enforcement a bassa latenza, con possibilità di terminare processi o bloccare azioni secondo la policy. \\
         \hline
