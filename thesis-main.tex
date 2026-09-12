@@ -578,16 +578,16 @@ Sono state considerate anche strategie alternative, come la generazione di uno U
 \chapter{Risultati e Discussione}
 \label{chap:results}
 
-Questo capitolo presenta i risultati ottenuti eseguendo la suite \texttt{all-no-stress} e una successiva campagna dedicata ai test di stress. La prima campagna comprende gli scenari generici, i casi benigni e i test Atomic Red Team descritti nel \Cref{chap:testing}; la seconda è stata eseguita separatamente per valutare la resilienza dei sistemi in presenza di un volume elevato di eventi. Il confronto considera quattro dimensioni: efficacia della detection, falsi positivi, latenza e costo computazionale. I risultati sono interpretati tenendo conto del perimetro sperimentale: Tetragon è stato utilizzato in modalità osservativa, senza policy di enforcement, e i due strumenti erano attivi contemporaneamente sullo stesso nodo.
+Questo capitolo presenta i risultati ottenuti dall'esecuzione di due campagne di test. La prima comprende gli scenari generici, i casi benigni e i test Atomic Red Team, mentre la seconda è composta da test mirati a valutare la performance di Falco e Tetragon in situazioni di stress. Il confronto considera quattro dimensioni: efficacia della detection, falsi positivi, latenza e costo computazionale. I risultati sono interpretati tenendo conto del perimetro sperimentale: Tetragon è stato utilizzato in modalità osservativa, senza policy di enforcement, e i due strumenti erano attivi contemporaneamente.
 
 \section{Risultati della suite senza stress}
 \label{sec:results-no-stress}
 
-La suite \texttt{all-no-stress} contiene 22 test, di cui 18 classificati come malevoli e 4 come benigni. Per ogni strumento, un test è stato considerato rilevato quando il collector ha associato almeno un evento al container corrispondente. Questa definizione misura la capacità di produrre telemetria coerente con lo scenario, ma non equivale a valutare la capacità di bloccare l'azione: nel setup adottato non è stato attivato l'enforcement di Tetragon.
+La suite utilizzata contiene 22 test, di cui 18 classificati come malevoli e 4 come benigni. Inoltre, 12 degli scenari sono stati realizzati ad hoc, mentre 10 sono stati selezionati da Atomic Red Team. Per maggiori informazioni sulla composizione della suite, si rimanda alla \Cref{sec:test-suite}. Per la lista completa dei test, si rimanda al repository del progetto \cite{repo-test-harness}.
 
 \subsection{Efficacia della detection}
 
-La Tabella~\ref{tab:results-detection} riassume la matrice di confusione e le metriche derivate. Falco rileva 2 dei 18 test malevoli, mentre Tetragon ne rileva 13. Ne risulta un recall rispettivamente pari a 0,1111 e 0,7222. In termini relativi, Tetragon riconosce circa il 72,2\% degli scenari malevoli considerati, contro l'11,1\% di Falco.
+La Tabella~\ref{tab:results-detection} riassume la matrice di confusione e le metriche derivate. Falco rileva 2 dei 18 test malevoli, mentre Tetragon ne rileva 14. Ne risulta un Recall rispettivamente pari a 0,1111 e 0,7778. In termini relativi, Tetragon riconosce circa il 77,8\% degli scenari malevoli considerati, contro l'11,1\% di Falco.
 
 \begin{table}[htbp]
     \centering
@@ -600,21 +600,21 @@ La Tabella~\ref{tab:results-detection} riassume la matrice di confusione e le me
         \textbf{Strumento} & \textbf{TP} & \textbf{FP} & \textbf{TN} & \textbf{FN} & \textbf{Recall} & \textbf{Precisione} \\
         \hline
         Falco & 2 & 1 & 3 & 16 & 0,1111 & 0,6667 \\
-        Tetragon & 13 & 4 & 0 & 5 & 0,7222 & 0,7647 \\
+        Tetragon & 14 & 4 & 0 & 4 & 0,7778 & 0,7778 \\
         \hline
     \end{tabularx}
 \end{table}
 
-Il recall più elevato di Tetragon indica una copertura maggiore sugli scenari selezionati, ma non implica che il risultato sia generalizzabile a ogni tecnica o configurazione. Le policy attive determinano infatti quali eventi vengono esportati e associati a un test. La precisione è pari a 0,7647 per Tetragon e 0,6667 per Falco: entrambi producono falsi positivi, ma il numero assoluto è diverso. In particolare, Tetragon genera quattro rilevazioni su casi benigni e nessun vero negativo, mentre Falco genera una rilevazione erronea, lasciando tre casi benigni senza alert. Il risultato evidenzia quindi un trade-off tra copertura e rumore: Tetragon intercetta più scenari malevoli, ma nel setup considerato segnala anche tutte le attività benigne della suite.
+Il recall più elevato di Tetragon indica una copertura maggiore sugli scenari selezionati, ma non implica che il risultato sia generalizzabile a ogni tecnica o configurazione. Infatti, le policy attive determinano quali eventi vengono rilevati e associati a un test. La precisione è pari a 0,7778 per Tetragon e 0,6667 per Falco: entrambi producono falsi positivi, ma il numero assoluto è diverso. In particolare, Tetragon genera quattro rilevazioni su casi benigni e nessun vero negativo, mentre Falco genera una rilevazione erronea, lasciando tre casi benigni senza avvisi. Il risultato evidenzia quindi un trade-off tra copertura e rumore: Tetragon intercetta più scenari malevoli, ma nel setup considerato segnala anche tutte le attività benigne della suite.
 
 \subsection{Latenza di rilevazione}
 
-La latenza è calcolata come intervallo tra l'avvio del container e il timestamp del primo evento associato al test. Considerando esclusivamente i test rilevati, la latenza media è di 268,844 ms per Falco e 254,704 ms per Tetragon. Tetragon presenta quindi un vantaggio medio di circa 14,140 ms, pari a circa il 5,3\%. La differenza è contenuta rispetto al divario osservato nel recall: nel campione analizzato, il principale vantaggio di Tetragon riguarda dunque la probabilità di produrre un evento associato, più che una riduzione drastica del tempo di produzione del primo evento.
+La latenza è calcolata come intervallo tra l'avvio del container (e quindi del comando da eseguire) e il timestamp riportato dal primo evento generato dal test. Considerando esclusivamente i test rilevati, la latenza media è di 268,844 ms per Falco e 254,704 ms per Tetragon. Tetragon presenta quindi un vantaggio medio di circa 14,140 ms, pari a circa il 5,3\%. Nonostante la differenza sia contenuta, il risultato è coerente con l'architettura di Tetragon, che esegue il filtraggio e la valutazione delle policy più vicino al kernel, riducendo la finestra di latenza tra evento e rilevazione.
 
-\section{Costo computazionale}
+\subsection{Costo computazionale}
 \label{sec:results-resource-overhead}
 
-Il consumo delle risorse è stato misurato durante l'esecuzione dei test tramite Docker. Per la CPU viene riportata la media dei campioni raccolti, mentre per la memoria viene riportato il valore massimo osservato. Le due metriche descrivono aspetti differenti: la prima evidenzia il lavoro di processamento sostenuto dal monitor, mentre la seconda rappresenta il picco di memoria occupata.
+Per la CPU viene riportata la media dei campioni raccolti, mentre per la memoria viene riportato il valore massimo osservato. Le due metriche descrivono aspetti differenti: la prima evidenzia il lavoro di processamento sostenuto dal monitor, mentre la seconda rappresenta il picco di memoria occupata.
 
 \begin{figure}[htbp]
     \centering
@@ -630,14 +630,14 @@ Il consumo delle risorse è stato misurato durante l'esecuzione dei test tramite
     \label{fig:generic-ram-results}
 \end{figure}
 
-Sulla suite senza stress, Falco utilizza mediamente il 5,62\% della CPU, contro lo 0,92\% di Tetragon. Il valore di Falco è quindi circa sei volte maggiore. Il comportamento si inverte per la memoria: Falco raggiunge 113,283 MB, mentre Tetragon raggiunge 147,768 MB. Tetragon utilizza quindi circa 34,5 MB in più, pari a un incremento di circa il 30,5\% rispetto al valore osservato per Falco. Le figure~\ref{fig:generic-cpu-results} e~\ref{fig:generic-ram-results} rendono visibile questo compromesso: Falco richiede più lavoro di CPU per la pipeline di acquisizione e valutazione, mentre Tetragon mantiene un consumo di CPU inferiore a fronte di una maggiore occupazione di memoria.
+Nella suite senza stress, Falco utilizza mediamente il 5,62\% della CPU, contro lo 0,92\% di Tetragon. Il valore di Falco è quindi circa sei volte maggiore. Il comportamento si inverte per la memoria: Falco raggiunge 113,283 MB, mentre Tetragon raggiunge 147,768 MB. Tetragon utilizza quindi circa 34,5 MB in più, pari a un incremento di circa il 30,5\% rispetto al valore osservato per Falco. Le Figure~\ref{fig:generic-cpu-results} e~\ref{fig:generic-ram-results} rendono visibile questo compromesso: Falco richiede più lavoro di CPU per la pipeline di acquisizione e valutazione, mentre Tetragon mantiene un consumo di CPU inferiore a fronte di una maggiore occupazione di memoria.
 
-Questi valori non devono essere interpretati come una misura assoluta del costo dei due progetti. Sono riferiti alle versioni, alle policy, al kernel e al carico della macchina virtuale usati nell'esperimento. Sono tuttavia utili per il confronto controllato, perché entrambi i monitor sono stati eseguiti nello stesso ambiente e nello stesso intervallo dei test.
+Questi valori non devono essere interpretati come una misura assoluta del costo dei due strumenti. Sono riferiti alle versioni, alle policy, al kernel e al carico della macchina virtuale usati nell'esperimento. Sono tuttavia utili per il confronto controllato, poiché entrambi i monitor sono stati eseguiti nello stesso ambiente e nello stesso intervallo dei test.
 
-\section{Comportamento sotto stress}
+\section{Risultati della suite di stress}
 \label{sec:results-stress}
 
-La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'elevata frequenza di operazioni di esecuzione e apertura di file, e \texttt{STRESS-IO-RAM}, orientato a I/O e allocazioni di memoria. Entrambi i test durano alcune decine di secondi e sono classificati come malevoli ai soli fini della campagna; non sono stati progettati per verificare una specifica tecnica ATT\&CK, ma per sottoporre la pipeline di telemetria a condizioni di carico.
+La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'elevata frequenza di operazioni di esecuzione e apertura di file, e \texttt{STRESS-IO-RAM}, orientato a I/O e allocazioni di memoria. Entrambi i test durano alcune decine di secondi e non sono stati progettati per verificare Recall e Precision degli strumenti, ma bensì per sottoporre le loro pipeline di telemetria a condizioni di carico.
 
 \begin{figure}[htbp]
     \centering
@@ -653,9 +653,9 @@ La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'
     \label{fig:stress-ram-results}
 \end{figure}
 
-Nel test \texttt{STRESS-EXEC}, Falco raggiunge un utilizzo medio della CPU pari al 192,49\%, mentre Tetragon si mantiene al 7,06\%. Il valore superiore al 100\% è compatibile con una misura aggregata su più CPU della macchina virtuale e indica un carico molto elevato per il monitor. Nel test \texttt{STRESS-IO-RAM}, invece, l'utilizzo medio è pari al 2,27\% per Falco e all'1,78\% per Tetragon. Il comportamento di Falco dipende quindi fortemente dalla natura del carico: la pressione su exec e open produce un costo di processamento molto più alto rispetto al carico combinato di I/O e memoria.
+Nel test \texttt{STRESS-EXEC}, Falco raggiunge un utilizzo medio della CPU pari al 192,49\%\footnote{Il valore superiore al 100\% è compatibile con una misura aggregata su più CPU della macchina virtuale e indica un carico molto elevato per il monitor.}, mentre Tetragon si mantiene al 7,06\%. Nel test \texttt{STRESS-IO-RAM}, invece, l'utilizzo medio risulta analogo agli scenari precedenti. Il comportamento di Falco dipende quindi fortemente dalla natura del carico: la pressione su exec e open produce un costo di processamento molto più alto rispetto al carico combinato di I/O e RAM.
 
-Per la memoria, il comportamento è più stabile. Falco raggiunge 123,03 MB in \texttt{STRESS-EXEC} e 122,91 MB in \texttt{STRESS-IO-RAM}; Tetragon raggiunge rispettivamente 146,15 MB e 146,16 MB. Il risultato conferma il compromesso già osservato nella suite senza stress: Tetragon utilizza più memoria, mentre Falco è più sensibile in termini di CPU quando il numero di eventi aumenta rapidamente. Le figure~\ref{fig:stress-cpu-results} e~\ref{fig:stress-ram-results} mostrano questo comportamento nei due scenari.
+Per quanto riguarda il test sulla memoria, il comportamento è più stabile. Falco raggiunge 123,03 MB in \texttt{STRESS-EXEC} e 122,91 MB in \texttt{STRESS-IO-RAM}; Tetragon raggiunge rispettivamente 146,15 MB e 146,16 MB. Il risultato conferma il compromesso già osservato nella suite senza stress: Tetragon utilizza più memoria, mentre Falco è più sensibile in termini di CPU quando il numero di eventi aumenta rapidamente. Le Figure~\ref{fig:stress-cpu-results} e~\ref{fig:stress-ram-results} mostrano questo comportamento nei due scenari.
 
 \subsection{Perdita di eventi}
 

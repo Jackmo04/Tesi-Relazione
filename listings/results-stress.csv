@@ -1,3 +1,0 @@
-Test_ID,Name,Category,Type,Test_Duration_ms,Falco_Detected,Tetragon_Detected,Falco_CPU_Avg(%),Falco_RAM_Max(MB),Falco_Drops_Delta,Tetragon_CPU_Avg(%),Tetragon_RAM_Max(MB),Tetragon_Drops_Delta
-STRESS-EXEC,Syscall Flood (Exec & Open),Stress,malicious,43576.56,False,False,192.49,123.03,1980597,7.06,146.15,0
-STRESS-IO-RAM,I/O & Memory Stress Test,Stress,malicious,34615.1,False,False,2.27,122.91,0,1.78,146.16,0

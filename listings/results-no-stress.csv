@@ -1,3 +1,0 @@
-Tool,True_Positives,False_Positives,True_Negatives,False_Negatives,Recall(TPR),Precision,Avg_Latency_ms,Avg_CPU_Usage,Max_RAM_Usage_MB
-Falco,2,1,3,16,0.1111,0.6667,268.844,5.62,113.283
-Tetragon,13,4,0,5,0.7222,0.7647,254.704,0.92,147.768
