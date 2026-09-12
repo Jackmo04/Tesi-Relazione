@@ -73,7 +73,14 @@
 
 %----------------------------------------------------------------------------------------
 
-\begin{abstract} % TODO: da rivedere
+\begin{abstract}
+La diffusione di applicazioni containerizzate e architetture cloud-native rende necessaria una sicurezza runtime capace di osservare il comportamento dei workload a livello kernel. Questa tesi confronta Falco e Tetragon, due strumenti basati sull'osservabilità del kernel e sull'impiego di eBPF, analizzandone architettura, modalita di deployment, configurazione delle policy ed efficacia sperimentale.
+
+Il lavoro combina un'analisi teorica con una valutazione empirica condotta in una macchina virtuale Linux mediante Docker Compose e codice Python. Sono stati definiti scenari malevoli, benigni e di stress, comprendenti accessi a file sensibili, scritture in percorsi protetti e test Atomic Red Team. Sono state raccolte rilevazioni, latenza, consumo di CPU e memoria ed eventi persi, calcolando Recall e Precision.
+
+I risultati mostrano profili differenti. Tetragon ha rilevato 14 dei 18 scenari malevoli considerati, con Recall pari a 0,7778, mentre Falco ne ha rilevati 2, con Recall pari a 0,1111. Tetragon ha inoltre mantenuto un consumo medio di CPU inferiore e una latenza media leggermente piu bassa, a fronte di un maggiore utilizzo di memoria e di piu falsi positivi. Durante il test con elevata frequenza di exec e open, Falco ha raggiunto un consumo CPU molto elevato e ha perso numerosi eventi, mentre Tetragon non ha registrato perdite nel setup considerato.
+
+Il confronto evidenzia un compromesso tra semplicità di configurazione, flessibilità dell'alerting, copertura, rumore e costo delle risorse. Falco è adatto a contesti orientati a detection e ampia integrazione con sistemi esterni; Tetragon quando sono prioritari filtraggio vicino al kernel e gestione di flussi ad alta frequenza. I risultati sono riferiti all'ambiente sperimentale adottato.
 
 \end{abstract}
 
