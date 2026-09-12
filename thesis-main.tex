@@ -703,25 +703,13 @@ Gli sviluppi futuri dovrebbero partire da questi limiti, realizzando un tuning i
 \appendix
 \chapter{Dichiarazione sull'uso di strumenti di GenAI}
 \label{appendix-a}
-% In assenza di linee guide esplicite degli editori o degli enti finanziatori di ricerca o differenti indicazioni specifiche dei docenti si suggerisce che una dichiarazione d’utilizzo di GenAI completa debba includere le seguenti informazioni, presentate in modo chiaro e conciso:
-% - Strumenti (applicazioni o modelli) di GenAI e relative versioni utilizzate:
-%   - Indicare il nome dello strumento (es. “ChatGPT” se applicazione o “GPT” se modello) con riferimento alla versione specifica (ad esempio, “ChatGPT-4, versione rilasciata a marzo 2024”). In assenza della versione precisa del modello, va bene anche la data della query.
-%   - Se sono stati utilizzati più strumenti, specificare ciascuno di essi indicandone nome e versione.
-% - Data o periodo di utilizzo: specificare la data o il periodo in cui lo strumento è stato usato (ad esempio: “Utilizzo singolo il 13 ottobre 2024” o “Utilizzo regolare da ottobre 2024 a dicembre 2024”).
-% - Modalità specifiche di utilizzo: fornire informazioni su come è stato utilizzato lo strumento, ad esempio collegandolo allo specifico caso d’uso previsto, ad esempio per presentazione di una lezione: “Supporto alla creazione di testo o elenchi puntati” “Supporto alla creazione di grafici esplicativi”, “Produzione di materiali multimediali”, didattici per docenti e studenti, come presentazioni e appunti di lezione”; per l’elaborazione di una tesi: “Revisione e ottimizzazione dei testi per migliorare chiarezza e coerenza”, “Generazione di grafici e diagrammi per la presentazione dei dati nella sezione ‘Risultati’, "Supporto alla scrittura automatica di frasi”, “Produzione di immagini illustrative per integrare la parte metodologica."
-% - Capitoli, sezioni o sottosezioni specifiche in cui lo strumento è stato utilizzato: specificare esattamente dove è stato applicato l’uso dello strumento, ad esempio “Generazione dei grafici di supporto nel Capitolo 2, Sezione 2.3.”, “Creazione di una struttura preliminare del Capitolo 2, 3 e 4”, “Creazione di immagini e diagrammi per l’esposizione dei risultati nelle Slide 12-13.”, “Generazione dello stato dell’arte contenuto nel Paragrafo 2 a partire dalla sola conoscenza di GenAI”
 
-Questa appendice documenta l'impiego di strumenti di intelligenza artificiale generativa durante la redazione della tesi. Gli strumenti sono stati utilizzati come supporto alla scrittura del codice, alla revisione linguistica e alla riorganizzazione di alcuni passaggi testuali. La responsabilità per la selezione delle fonti, la correttezza delle descrizioni tecniche, l'esecuzione degli esperimenti e l'interpretazione dei risultati rimane dell'autore.
+Questa appendice documenta l'impiego di strumenti di intelligenza artificiale generativa durante l'implementazione della piattaforma di testing e la redazione della tesi. Gli strumenti sono stati utilizzati come supporto alla scrittura del codice, alla revisione linguistica e alla riorganizzazione di alcuni passaggi testuali. La responsabilità per la selezione delle fonti, la correttezza delle descrizioni tecniche, l'esecuzione degli esperimenti e l'interpretazione dei risultati rimane dell'autore.
 
-\section{Strumenti utilizzati}
+In particolare è stato utilizzato \textit{GitHub Copilot}, principalmente nel periodo compreso tra il 18 agosto 2026 e il 3 settembre 2026, per suggerire frammenti di codice Python e YAML, completare funzioni e generare boilerplate. L'uso di Copilot è stato limitato a suggerimenti contestuali, con revisione e modifica manuale da parte dell'autore prima dell'integrazione nel progetto.
 
-Sono stati utilizzati GitHub Copilot e Gemini 3.1 Pro. Il loro impiego ha riguardato principalmente il supporto alla scrittura e alla revisione del codice della suite di testing, il controllo della chiarezza espositiva e l'individuazione di possibili errori linguistici. Le regole eBPF, i comandi di test, le misurazioni e i risultati riportati nella tesi sono stati verificati nell'ambiente sperimentale descritto nel \Cref{chap:testing}.
+È stato inoltre impiegato \textit{Gemini 3.1 Pro}, nel periodo compreso tra il 4 agosto 2026 e il 12 settembre 2026, per la revisione linguistica e la riorganizzazione di alcune sezioni del testo, con particolare attenzione alla chiarezza espositiva e alla coerenza terminologica. Tutti i contenuti generati da Gemini sono stati verificati e adattati dall'autore per garantire l'accuratezza tecnica e la coerenza con il contesto della tesi.
 
-\section{Esempi di Prompt}
-
-Le richieste hanno riguardato la proposta di implementazioni per il programma di testing, la revisione di frammenti LaTeX e Python, il controllo della coerenza tra descrizione metodologica e risultati e la riformulazione di passaggi tecnici. Le risposte generate sono state usate come supporto, sottoposte a verifica manuale e adattate al contenuto effettivamente prodotto durante il lavoro.
-
-% Sottolineare che tutti i comandi di exploit, le regole eBPF, le misurazioni di latenza e le conclusioni derivano da esperimenti reali condotti sull'infrastruttura di test e non da allucinazioni del modello.
 %----------------------------------------------------------------------------------------
 % BIBLIOGRAPHY
 %----------------------------------------------------------------------------------------
