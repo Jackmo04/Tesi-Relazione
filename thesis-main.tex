@@ -68,7 +68,7 @@
     \noindent Desidero ringraziare il Prof.~Vittorio Ghini per la supervisione e il supporto durante lo sviluppo di questa tesi.
     \bigskip
 
-    \noindent Infine, ringrazio i miei genitori, mia sorella, i miei nonni e tutti gli amici che mi hanno sostenuto in questo percorso.
+    \noindent Ringrazio inoltre i miei genitori, mia sorella, i miei nonni e tutti gli amici e colleghi che mi hanno sostenuto in questo percorso.
 \end{acknowledgements}
 
 %----------------------------------------------------------------------------------------
@@ -112,7 +112,7 @@ L'obiettivo del progetto è quindi di confrontare in modo critico due strumenti 
 La tesi è organizzata in una sequenza logica che parte dai fondamenti teorici e arriva alla valutazione operativa degli strumenti. In primo luogo, viene introdotto il contesto della sicurezza cloud-native e le basi di eBPF (\Cref{chap:background}); in seguito, vengono descritti architettura, contesti di deployment e modalità di funzionamento di Falco e Tetragon (Capitoli~\ref{chap:falco-tetragon} e~\ref{chap:use-cases-deployment}); infine, viene presentata la progettazione di un programma per confrontare le capacità di entrambi gli strumenti e l'analisi dei derivanti risultati (Capitoli~\ref{chap:testing} e~\ref{chap:results}). In questo modo, il lavoro non si limita a una descrizione formale dei due sistemi, ma costruisce un percorso che collega modello concettuale, scenario applicativo e evidenza sperimentale, offrendo al lettore una visione completa delle opportunità e dei limiti della sicurezza kernel-level nei moderni ambienti cloud-native.
 
 \paragraph{Dichiarazione sull'uso di strumenti di GenAI}
-Per la redazione di questa tesi, sono stati utilizzati strumenti di intelligenza artificiale generativa (GenAI) quali \textit{GitHub Copilot} e \textit{Gemini 3.1 Pro} per supporto nella scrittura del codice e nella revisione dei testi. I dettagli sul loro utilizzo sono descritti nell'Appendice~\ref{appendix-a}.
+Per la redazione di questa tesi sono stati utilizzati strumenti di intelligenza artificiale generativa (GenAI) per supporto nella scrittura del codice e nella revisione dei testi. I dettagli sul loro utilizzo sono descritti nell'Appendice~\ref{appendix-a}.
 
 %----------------------------------------------------------------------------------------
 
@@ -125,9 +125,9 @@ Questo capitolo fornisce il quadro concettuale necessario per comprendere il ruo
 
 \section{Sicurezza Cloud-Native}
 \label{sec:cloud-native-security}
-Il paradigma cloud-native si è ormai consolidato come standard per lo sviluppo e il deployment di applicazioni moderne, grazie alla sua capacità di scalare dinamicamente e di sfruttare al meglio le risorse distribuite. Tuttavia, questa architettura introduce complessità significative in termini di sicurezza. La natura effimera dei container e la frequente interazione tra servizi diversi rendono difficile mantenere una visibilità completa e un controllo granulare sul sistema.
+La sicurezza degli ambienti cloud-native deve tenere conto di un modello operativo in cui le risorse vengono create, replicate e rimosse con grande frequenza. Questa dinamicità, insieme alla distribuzione dei servizi su più componenti, rende insufficienti i controlli basati esclusivamente su configurazioni statiche e complica l'attribuzione degli eventi alle singole applicazioni.
 
-I container condividono lo stesso kernel dell'host e molte attività sensibili, come privilege escalation, manipolazione di filesystem montati o esfiltrazione di dati, si manifestano attraverso syscall e comportamenti runtime che non sono immediatamente evidenti osservando soltanto i log applicativi. Per questo motivo, la sicurezza moderna nel paradigma cloud-native si fonda su tre pilastri principali:
+Un ulteriore elemento di criticità deriva dal modello di isolamento dei container: pur disponendo di namespace e cgroups, essi condividono il kernel dell'host. Operazioni quali l'acquisizione di privilegi, la modifica di filesystem montati o il trasferimento non autorizzato di dati possono quindi essere individuate soprattutto osservando syscall e attività di processo, che non sempre risultano visibili nei log applicativi. In questo contesto, un'impostazione di sicurezza completa comprende almeno tre livelli complementari:
 \begin{itemize}
     \item \textbf{Riduzione della superficie d'attacco:} uso del principio del privilegio minimo, immutabilità delle immagini e meccanismi di namespace e cgroups per isolare risorse.
     \item \textbf{Pre-deployment security:} scansione delle immagini e verifica di conformità durante la pipeline CI/CD.
@@ -480,7 +480,7 @@ Come già preannunciato, per aumentare la riproducibilità e la confrontabilità
 
 \lstinputlisting[
     language=docker,
-    caption={Costruzione dell'immagine Docker contenente il binario \texttt{goart}.},
+    caption={Costruzione dell'immagine Docker per i test Atomic Red Team.},
     label={lst:dockerfile-art}
 ]{listings/Dockerfile.art}
 
@@ -511,7 +511,7 @@ Un esempio di policy per la rilevazione di connessioni TCP è riportato nel List
 
 \lstinputlisting[
     language=yaml,
-    caption={TracingPolicy per la rilevazione della connessione TCP.},
+    caption={TracingPolicy per la rilevazione di connessioni TCP.},
     label={lst:tcp-connection-policy}
 ]{listings/tcp-connect.yaml}
 
@@ -530,7 +530,7 @@ La sequenza complessiva delle interazioni tra i componenti è riportata nella \C
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/sequenceUML.pdf}
-    \caption{Sequenza di esecuzione del programma di testing automatizzato.}
+    \caption{Diagramma di sequenza del programma di testing automatizzato.}
     \label{fig:testing-sequence}
 \end{figure}
 
@@ -621,14 +621,14 @@ Per la CPU viene riportata la media dei campioni raccolti, mentre per la memoria
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/results/generic_cpu_benchmark.pdf}
-    \caption{Utilizzo medio della CPU nella suite \texttt{all-no-stress}.}
+    \caption{Utilizzo medio della CPU nella suite senza stress.}
     \label{fig:generic-cpu-results}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/results/generic_ram_benchmark.pdf}
-    \caption{Utilizzo massimo della memoria nella suite \texttt{all-no-stress}.}
+    \caption{Utilizzo massimo di memoria RAM nella suite senza stress.}
     \label{fig:generic-ram-results}
 \end{figure}
 
@@ -644,14 +644,14 @@ La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/results/stress_cpu_benchmark.pdf}
-    \caption{Utilizzo medio della CPU durante i test di stress.}
+    \caption{Utilizzo medio della CPU duramte i test di stress.}
     \label{fig:stress-cpu-results}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/results/stress_ram_benchmark.pdf}
-    \caption{Utilizzo massimo della memoria durante i test di stress.}
+    \caption{Utilizzo massimo di memoria RAM durante i test di stress.}
     \label{fig:stress-ram-results}
 \end{figure}
 
