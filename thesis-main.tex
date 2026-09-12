@@ -519,18 +519,10 @@ Un esempio di policy per la rilevazione di connessioni TCP è riportato nel List
 
 In questa sezione vengono descritte le scelte metodologiche e le motivazioni alla base della progettazione del programma di test, ponendo anche l'accento sulle considerazioni relative all'implementazione e all'uso degli strumenti di telemetria.
 
-\subsection{Isolamento dei test e correlazione degli eventi}
-\label{sec:test-isolation-correlation}
+\subsection{Architettura}
+Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione degli scenari di test, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il \texttt{Loader} interpreta la suite di test, il \texttt{Runner} gestisce il ciclo di vita dei container e i moduli \texttt{TelemetryCollector} e \texttt{PerformanceMonitor} acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
 
-Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato prima dell'avvio e rimosso al termine. Questa scelta impedisce che file creati, processi residui, modifiche al filesystem o altri effetti collaterali di un test influenzino quello successivo. L'isolamento è particolarmente importante quando una campagna alterna test malevoli, casi benigni e workload di stress: senza una nuova istanza, un processo lasciato attivo o un artefatto temporaneo potrebbe produrre eventi attribuiti al test sbagliato.
-
-Il container usa-e-getta semplifica inoltre la correlazione tra azione eseguita ed eventi osservati. Al momento della creazione, Docker assegna un identificativo univoco; il runner conserva l'identificativo abbreviato e lo associa al risultato del test. Falco riporta l'identificativo del container nei campi di contesto dell'evento, mentre Tetragon lo espone nei dati relativi al processo. Il collector normalizza entrambi i valori allo stesso formato e il programma seleziona gli eventi il cui identificativo coincide con quello restituito dal runner. In questo modo il criterio di appartenenza è indipendente dal nome del processo, dal comando concreto o dall'ordine di arrivo dei log.
-
-Sono state considerate anche strategie alternative, come l'associazione basata sul comando eseguito, sul nome dell'immagine, sul timestamp o sull'identificativo del processo. Questi criteri sono meno robusti nel contesto adottato: lo stesso comando può generare più processi, un'immagine può essere riutilizzata da test diversi, i timestamp dei log possono differire per precisione e un PID può essere riutilizzato dopo la terminazione del processo. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria. L'uso dell'identificativo abbreviato è sufficiente nel contesto Docker della sperimentazione, poiché il prefisso utilizzato mantiene l'univocità tra container contemporanei.
-
-Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione di questi scenari isolati, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il caricatore interpreta la suite di test, il runner gestisce il ciclo di vita dei container e i moduli di raccolta e monitoraggio acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
-
-La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}. Il diagramma evidenzia il ruolo di \texttt{main} come coordinatore e mostra il ciclo ripetuto per ciascun test ancora da eseguire. Prima dell'avvio del ciclo, il programma invoca \texttt{load\_tests(file)} sul modulo \texttt{TestLoader}, che legge il file JSON specificato dall'utente e converte ogni elemento in un oggetto \texttt{Test}. Questa rappresentazione uniforma i parametri necessari all'esecuzione, tra cui identificativo, comando, tipo di test, immagine del container ed eventuale uso di una shell.
+La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}, mentre il diagramma delle classi nella \Cref{fig:testing-classes} mostra l'organizzazione delle classi del programma. Il diagramma di sequenza, in particolare, evidenzia il ruolo di \texttt{main} come coordinatore; infatti, è sua responsabilità avviare i moduli di telemetria, ciclare attraverso la suite di test, aggregare i risultati e infine inviarli al modulo \texttt{Evaluator} per il calcolo delle metriche.
 
 \begin{figure}[htbp]
     \centering
@@ -539,13 +531,20 @@ La sequenza complessiva delle interazioni tra i componenti è riportata nella \C
     \label{fig:testing-sequence}
 \end{figure}
 
-Dopo il caricamento della suite, il \texttt{main} inizializza i tre componenti di esecuzione: \texttt{TestRunner}, \texttt{TelemetryCollector} e \texttt{PerformanceMonitor}.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/classesUML.pdf}
+    \caption{Diagramma delle classi del programma di testing automatizzato.}
+    \label{fig:testing-classes}
+\end{figure}
 
-Il collector viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo della prova, nome della regola e contenuto originale dell'evento.
+Il \texttt{TelemetryCollector} viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo del container, nome della policy che ha generato l'evento e contenuto originale dell'evento.
 
-L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP \texttt{/api/v1/query} dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total}. Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi \cite{prometheus-querying}.
+L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus\footnote{Prometheus è un sistema di monitoraggio e alerting open-source. \cite{prometheus}}. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total}. Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta, perciò, rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi. \cite{prometheus-querying}
 
-Il meccanismo è illustrato nel \Cref{lst:drop-metrics}. In caso di risposta vuota, errore HTTP o indisponibilità temporanea di Prometheus, il metodo restituisce zero; questa scelta evita di interrompere la campagna, ma rende necessario interpretare lo zero come "nessun drop osservato o metrica non disponibile" quando si analizzano i risultati.
+L'implementazione in Python di questo meccanismo è illustrato nel Listato~\ref{lst:drop-metrics}.
+
+\vfill
 
 \lstinputlisting[
     language=python,
@@ -562,6 +561,18 @@ Una volta terminata l'esecuzione, il programma lascia trascorrere una breve fine
 Al termine della campagna, il collector viene fermato e l'insieme dei risultati viene passato al modulo \texttt{Evaluator}. Per ciascun tool, l'evaluator considera rilevato un test quando è presente almeno un evento della sorgente corrispondente. Il confronto con il tipo dichiarato nel test consente di aggiornare la matrice di confusione e di calcolare recall, precisione e latenza media di rilevazione. La latenza è ottenuta come differenza tra il timestamp del primo evento associato e l'istante di avvio del container; gli eventi privi di una differenza temporale positiva non contribuiscono alla media.
 
 Infine, il modulo \texttt{Exporter} serializza in formato CSV sia i dati relativi ai singoli test sia le metriche aggregate. Il primo blocco del file contiene durata, rilevamento da parte di ciascuno strumento, consumo di risorse e perdita di eventi; il secondo riporta i valori TP, FP, TN, FN, recall, precisione e latenza media. La separazione tra dati grezzi e metriche aggregate conserva la possibilità di effettuare analisi successive senza ripetere necessariamente la campagna sperimentale.
+
+
+\subsection{Isolamento dei test e correlazione degli eventi}
+\label{sec:test-isolation-correlation}
+
+Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato prima dell'avvio e rimosso al termine. Questa scelta impedisce che file creati, processi residui, modifiche al filesystem o altri effetti collaterali di un test influenzino quello successivo. L'isolamento è particolarmente importante quando una campagna alterna test malevoli, casi benigni e workload di stress: senza una nuova istanza, un processo lasciato attivo o un artefatto temporaneo potrebbe produrre eventi attribuiti al test sbagliato.
+
+Il container usa-e-getta semplifica inoltre la correlazione tra azione eseguita ed eventi osservati. Al momento della creazione, Docker assegna un identificativo univoco; il runner conserva l'identificativo abbreviato e lo associa al risultato del test. Falco riporta l'identificativo del container nei campi di contesto dell'evento, mentre Tetragon lo espone nei dati relativi al processo. Il collector normalizza entrambi i valori allo stesso formato e il programma seleziona gli eventi il cui identificativo coincide con quello restituito dal runner. In questo modo il criterio di appartenenza è indipendente dal nome del processo, dal comando concreto o dall'ordine di arrivo dei log.
+
+Sono state considerate anche strategie alternative, come l'associazione basata sul comando eseguito, sul nome dell'immagine, sul timestamp o sull'identificativo del processo. Questi criteri sono meno robusti nel contesto adottato: lo stesso comando può generare più processi, un'immagine può essere riutilizzata da test diversi, i timestamp dei log possono differire per precisione e un PID può essere riutilizzato dopo la terminazione del processo. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria. L'uso dell'identificativo abbreviato è sufficiente nel contesto Docker della sperimentazione, poiché il prefisso utilizzato mantiene l'univocità tra container contemporanei.
+
+
 
 %----------------------------------------------------------------------------------------
 
