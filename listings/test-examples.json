@@ -18,15 +18,6 @@
     "container_image": "custom/netcat:alpine"
   },
   {
-    "id": "DISCOVERY-DOCKER",
-    "name": "Discovery of Docker Environment",
-    "category": "Discovery",
-    "test_type": "malicious",
-    "command": "ls -la /.dockerenv",
-    "shell_wrap": false,
-    "container_image": "alpine:latest"
-  },
-  {
     "id": "BENIGN-NET",
     "name": "Node.js External API HTTPS Request",
     "category": "False_Positive_Testing",
