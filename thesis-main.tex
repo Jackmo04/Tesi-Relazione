@@ -1,23 +1,31 @@
-\documentclass[12pt,a4paper,openright,twoside]{book}
+\newif\ifprintable
+\printablefalse
+
+\ifprintable
+    \documentclass[12pt,a4paper,openright,twoside]{book}
+    \usepackage[hidelinks]{hyperref}
+\else
+    \documentclass[12pt,a4paper,oneside]{book}
+    \usepackage{hyperref}
+    \hypersetup{
+        colorlinks=true,
+        urlcolor=blue,
+        linkcolor=cyan,
+        citecolor=red
+    }
+\fi
+
 \usepackage[utf8]{inputenc}
 \usepackage{disi-thesis}
 \usepackage{code-lstlistings}
 \usepackage{notes}
 \usepackage{shortcuts}
 \usepackage{acro}
-\usepackage{hyperref}
 \usepackage{tabularx}
 \usepackage{placeins}
 \usepackage{xspace}
 \usepackage[bottom,hang,flushmargin]{footmisc}
 
-\hypersetup{
-    colorlinks=true,
-    urlcolor=blue,
-    linkcolor=cyan,
-    citecolor=red
-}
-% \hypersetup{hidelinks} % PER STAMPA
 
 %----------------------------------------------------------------------------------------
 % FRONTESPIZIO
@@ -540,15 +548,11 @@ La sequenza complessiva delle interazioni tra i componenti è riportata nella \C
 
 Il \texttt{TelemetryCollector} viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo del container, nome della policy che ha generato l'evento e contenuto originale dell'evento.
 
-L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus \cite{prometheus}. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total}. Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta, perciò, rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi. \cite{prometheus-querying}
-
-L'implementazione in Python di questo meccanismo è illustrato nel Listato~\ref{lst:drop-metrics}.
-
-\vfill
+L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus \cite{prometheus}. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total} (Listato~\ref{lst:drop-metrics}). Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta, perciò, rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi. \cite{prometheus-querying}
 
 \lstinputlisting[
     language=python,
-    caption={Interrogazione di Prometheus per i contatori degli eventi persi.},
+    caption={Implementazione Python per l'interrogazione di Prometheus.},
     label={lst:drop-metrics}
 ]{listings/metrics.py}
 
