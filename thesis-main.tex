@@ -25,6 +25,7 @@
 \usepackage{placeins}
 \usepackage{xspace}
 \usepackage[bottom,hang,flushmargin]{footmisc}
+\usepackage{float}
 
 
 %----------------------------------------------------------------------------------------
@@ -524,23 +525,23 @@ In questa sezione vengono descritte le scelte metodologiche e le motivazioni all
 \subsection{Architettura}
 Il programma di testing è stato progettato come una pipeline automatizzata per l'esecuzione degli scenari di test, la raccolta della telemetria prodotta dagli strumenti di sicurezza e il calcolo delle metriche di valutazione. L'architettura è organizzata secondo una separazione delle responsabilità: il modulo principale coordina il flusso di esecuzione, il \texttt{Loader} interpreta la suite di test, il \texttt{Runner} gestisce il ciclo di vita dei container e i moduli \texttt{TelemetryCollector} e \texttt{PerformanceMonitor} acquisiscono rispettivamente gli eventi di sicurezza e le statistiche di utilizzo delle risorse.
 
-La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}, mentre il diagramma delle classi nella \Cref{fig:testing-classes} mostra l'organizzazione delle classi del programma. Il diagramma di sequenza, in particolare, evidenzia il ruolo di \texttt{main} come coordinatore; infatti, è sua responsabilità avviare i moduli di telemetria, ciclare attraverso la suite di test, aggregare i risultati e infine inviarli al modulo \texttt{Evaluator} per il calcolo delle metriche.
+La sequenza complessiva delle interazioni tra i componenti è riportata nella \Cref{fig:testing-sequence}, mentre il diagramma nella \Cref{fig:testing-classes} mostra l'organizzazione delle classi del programma. Il diagramma di sequenza, in particolare, evidenzia il ruolo di \texttt{main} come coordinatore; infatti, è sua responsabilità avviare i moduli di telemetria, ciclare attraverso la suite di test, aggregare i risultati e infine inviarli al modulo \texttt{Evaluator} per il calcolo delle metriche.
 
-\begin{figure}[htbp]
+Il \texttt{TelemetryCollector} viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo del container, nome della policy che ha generato l'evento e contenuto originale dell'evento.
+
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/sequenceUML.pdf}
     \caption{Diagramma di sequenza del programma di testing automatizzato.}
     \label{fig:testing-sequence}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/classesUML.pdf}
     \caption{Diagramma delle classi del programma di testing automatizzato.}
     \label{fig:testing-classes}
 \end{figure}
-
-Il \texttt{TelemetryCollector} viene avviato come attività asincrona prima dell'esecuzione dei test: ciascuno dei suoi task osserva il rispettivo file di log e rimane in attesa di nuove righe senza caricare nuovamente il contenuto già presente. Questa scelta consente di distinguere gli eventi generati durante la campagna corrente da quelli eventualmente prodotti in precedenza. Per ogni riga acquisita, il collector deserializza l'evento JSON, estrae il contesto del container e costruisce un oggetto \texttt{SecurityEvent} con sorgente, timestamp, identificativo del container, nome della policy che ha generato l'evento e contenuto originale dell'evento.
 
 L'esecuzione di un singolo test inizia con la lettura dei contatori degli eventi persi esposti da Prometheus \cite{prometheus}. Il modulo \texttt{PerformanceMonitor} interroga l'endpoint HTTP dell'istanza locale, passando una query PromQL e interpretando il valore numerico restituito nella risposta JSON. Per Tetragon viene interrogata la serie \texttt{tetragon\_observer\_ringbuf\_events\_lost\_total}, mentre per Falco viene usata \texttt{falcosecurity\_scap\_n\_drops\_total} (Listato~\ref{lst:drop-metrics}). Si tratta di contatori cumulativi: il programma legge il valore iniziale prima dell'esecuzione e quello finale dopo la finestra di raccolta, quindi calcola il delta. Il delta, perciò, rappresenta gli eventi persi durante il singolo test e non il totale storico dall'avvio dei servizi. \cite{prometheus-querying}
 
@@ -684,7 +685,7 @@ I valori di Recall, Precision e latenza devono quindi essere considerati indicat
 
 %----------------------------------------------------------------------------------------
 
-\chapter{Conclusione e sviluppi futuri}
+\chapter{Conclusioni e sviluppi futuri}
 \label{chap:conclusion}
 
 Il presente lavoro ha analizzato il ruolo della sicurezza a livello kernel negli ambienti cloud-native, confrontando Falco e Tetragon come strumenti per l'osservazione e la rilevazione di comportamenti sospetti nei container. L'obiettivo principale era comprendere in che modo i due approcci differissero nella capacità di individuare attività anomale e quali compromessi emergessero in termini di precisione, latenza e complessità di configurazione.
