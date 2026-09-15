@@ -436,7 +436,7 @@ I risultati ottenuti costituiranno la base del confronto nel \Cref{chap:results}
 
 \section{Configurazione dell'ambiente di test}
 
-L'ambiente sperimentale è stato predisposto in una macchina virtuale dedicata con le seguenti caratteristiche (riportate a titolo di documentazione e riproducibilita):
+L'ambiente sperimentale è stato predisposto in una macchina virtuale (VM) dedicata con le seguenti caratteristiche (riportate a titolo di documentazione e riproducibilità):
 \begin{itemize}
     \item Hypervisor: VirtualBox 7.2.2;
     \item Sistema operativo: Ubuntu 26.04.1 LTS;
@@ -458,14 +458,14 @@ Una versione ridotta della configurazione utilizzata è riportata nel Listato~\r
     label={lst:compose-falco-tetragon}
 ]{listings/docker-compose.yaml}
 
-Da questa configurazione si può notare come nel comando di avvio di Tetragon è presente l'opzione \texttt{--export-allowlist}; essa serve a limitare gli eventi scritti nei log ai soli tipi indicati. La sua funzione, ai fini del nostro programma, è quella di rendere il confronto più omogeneo con Falco, che produce un alert quando una regola viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata, come invece succede con Tetragon. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
+Da questa configurazione si può notare l'opzione \texttt{--export-allowlist} nel comando di avvio di Tetragon, che serve a limitare gli eventi scritti nei log ai soli tipi indicati. La sua funzione, ai fini del nostro programma, è quella di rendere il confronto più omogeneo con Falco, che produce un alert quando una regola viene soddisfatta, invece di registrare indiscriminatamente ogni syscall osservata, come invece succede con Tetragon. Limitare l'export agli eventi pertinenti alle TracingPolicy riduce quindi il rumore del log, il costo di post-processing e il rischio di interpretare come detection eventi generici non associati a una policy attivata.
 
 Si precisa, inoltre, che con questa configurazione entrambi i servizi sono attivi contemporaneamente durante ogni campagna. L'obiettivo è confrontare Falco e Tetragon nello stesso intervallo temporale e sotto lo stesso carico, evitando che differenze tra esecuzioni separate vengano attribuite erroneamente allo strumento. 
 
 L'esecuzione concorrente è possibile per tre motivi: primo, il sottosistema di tracciamento del kernel è in grado di gestire più programmi eBPF contemporaneamente, anche se collegati allo stesso hook \cite{ebpf-concurrency,kernel-bpf-headers,kernel-ring-buffer}; secondo, sia Falco che Tetragon utilizzano un \textit{ring buffer}, progettato per gestire correttamente la concorrenza \cite{tetragon-github,falco-docs-kernel}; terzo, Tetragon viene utilizzato esclusivamente in modalità di sola osservazione, senza azioni di blocco, evitando che l'esecuzione di un enforcement possa interferire con la detection di Falco.
 Ciò nonostante, le prove sperimentali sono state condotte anche in modalità separata, per verificare che la presenza di un agente non influenzasse in modo significativo le metriche dell'altro.
 
-Dal punto di vista metodologico, questa configurazione privilegia la riproducibilita rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalle policy attive. Tuttavia, proprio la tracciabilita delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto robusto e riproducibile nelle medesime condizioni operative.
+Dal punto di vista metodologico, questa configurazione privilegia la riproducibilità rispetto alla generalizzazione assoluta: i risultati dipendono dalla versione del kernel, dalle immagini usate e dalle policy attive. Tuttavia, proprio la tracciabilità delle dipendenze (Compose, versioni, mount, flag di export) rende il setup adatto a un confronto robusto e riproducibile nelle medesime condizioni operative.
 
 \subsection{Selezione dei test}
 \label{sec:test-suite}
@@ -473,9 +473,9 @@ Dal punto di vista metodologico, questa configurazione privilegia la riproducibi
 Gli scenari di test realizzati si dividono in tre gruppi: scenari generici, costruiti per verificare le policy definite nell'ambiente, test Atomic Red Team \cite{atomic-red-team} selezionati per la loro associazione diretta a tecniche MITRE ATT\&CK \cite{mitre-attack} e scenari di stress, destinati a valutare il comportamento della telemetria in condizioni di carico elevato.
 
 Gli scenari generici sono stati scelti per coprire operazioni direttamente osservabili dalle policy di Falco e Tetragon. L'obiettivo, tuttavia, non è quello di verificare il rilevamento solo di semplici comandi, ma di vedere come gli strumenti reagiscono a tecniche di evasione o altri comportamenti atti a confondere la detection.
-Il gruppo comprende l'avvio di una shell interattiva, l'esecuzione di un binario non riconosciuto, la modifica di \texttt{/etc/shadow}, l'accesso a file sensibili e una connessione verso un indirizzo esterno. Sono inoltre presenti test per verificare l'appartenenza ad un container, insieme a casi benigni che producono attività realistiche, quali il riavvio di un servizio web, una richiesta HTTPS e il backup di \texttt{/etc/}. I casi benigni costituiscono il riferimento per la stima dei falsi positivi e impediscono di valutare la detection esclusivamente su attività malevole.
+Il gruppo comprende l'avvio di una shell interattiva, l'esecuzione di un binario non riconosciuto, la modifica di \texttt{/etc/shadow}, l'accesso a file sensibili e una connessione verso un indirizzo esterno. Sono inoltre presenti test per verificare l'appartenenza a un container, insieme a casi benigni che producono attività realistiche, quali il riavvio di un servizio web, una richiesta HTTPS e il backup di \texttt{/etc/}. I casi benigni costituiscono il riferimento per la stima dei falsi positivi e impediscono di valutare la detection esclusivamente su attività malevole.
 
-Come già preannunciato, per aumentare la riproducibilità e la confrontabilità degli scenari offensivi una parte della suite utilizza Atomic Red Team (ART). A tale scopo è stata realizzata un'immagine Docker apposita (Listato~\ref{lst:dockerfile-art}) contenente il binario \texttt{goart} del progetto \textit{go-atomicredteam} \cite{go-atomicredteam}, che permette di eseguire i test di ART in maniera standardizzata. In questo modo l'immagine usata durante la campagna contiene già il programma pronto all'esecuzione, senza richiedere una compilazione all'avvio di ogni test.
+Come già preannunciato, per aumentare la riproducibilità e la confrontabilità degli scenari offensivi una parte della suite utilizza Atomic Red Team (ART). A tale scopo è stata realizzata un'immagine Docker apposita (Listato~\ref{lst:dockerfile-art}) contenente il binario \texttt{goart} del progetto \textit{go-atomicredteam} \cite{go-atomicredteam}, che permette di eseguire i test di ART in maniera standardizzata. In questo modo si evita di effettuare la compilazione all'avvio di ogni test.
 
 \lstinputlisting[
     language=docker,
@@ -485,7 +485,7 @@ Come già preannunciato, per aumentare la riproducibilità e la confrontabilità
 
 I test utilizzati nella suite sono perciò direttamente riferiti a tecniche MITRE ATT\&CK. L'accesso a \texttt{/etc/passwd} e \texttt{/etc/shadow} è riferito a \texttt{T1003.008}, il masquerading del processo \texttt{crond} a \texttt{T1036.003}, la raccolta delle informazioni sul sistema a \texttt{T1082} e la ricerca della posizione tramite rete a \texttt{T1614}.
 
-Infine, i test di stress, basati su \texttt{stress-ng} \cite{stress-ng}, non rappresentano una tecnica avversaria, ma servono a produrre un volume elevato di exec, open, I/O e allocazioni di memoria, così da valutare la resilienza e le performance dei due strumenti.
+Infine, i test di stress, basati su \texttt{stress-ng} \cite{stress-ng}, non rappresentano una tecnica avversaria, ma servono a produrre un volume elevato di \texttt{exec}, \texttt{open}, operazioni di I/O e allocazioni di memoria, così da valutare la resilienza e le performance dei due strumenti.
 
 \subsection{Formato della suite di test}
 \label{sec:formato-suite-test}
@@ -514,7 +514,7 @@ Un esempio di policy per la rilevazione di connessioni TCP è riportato nel List
     label={lst:tcp-connection-policy}
 ]{listings/tcp-connect.yaml}
 
-È importante sottolineare che, per lo scopo di questa tesi, le TracingPolicy sono state progettate per essere il più specifiche possibili; tuttavia, nei casi in cui la selettività potesse comportare perdite di copertura, si è deciso di adottare un approccio più ampio, accettando un aumento del rumore. In un contesto reale sarebbe opportuno effettuare audit e tuning delle policy per adattarle alle esigenze specifiche.
+È importante sottolineare che, per lo scopo di questa tesi, le TracingPolicy sono state progettate per essere il più specifiche possibile; tuttavia, nei casi in cui la selettività potesse comportare perdite di copertura, si è deciso di adottare un approccio più ampio, accettando un aumento del rumore. In un contesto reale sarebbe opportuno effettuare audit e tuning delle policy per adattarle alle esigenze specifiche.
 
 \section{Progettazione del programma di testing}
 \label{sec:testing-program-design}
@@ -554,7 +554,7 @@ Successivamente il monitor delle prestazioni avvia un thread che, a intervalli r
 
 Il \texttt{Runner} crea quindi un container a partire dall'immagine indicata nella definizione del test. Se richiesto dal campo \texttt{shell\_wrap}, il comando viene eseguito attraverso \texttt{/bin/sh -c}; in caso contrario viene passato direttamente al container. L'istante di avvio viene ricavato dagli attributi Docker, dopodiché il runner attende la terminazione del container, ne misura la durata complessiva e lo rimuove.
 
-Una volta terminata l'esecuzione, il programma lascia trascorrere una breve finestra temporale per consentire ai \texttt{TelemetryCollector} di acquisire gli eventi generati per poi interrompere il \texttt{PerformanceMonitor}. Gli eventi raccolti vengono filtrati confrontando l'identificativo del container che li ha generati e aggregati dentro a un oggetto \texttt{TestResult}, assieme alle statistiche di prestazione. Il ciclo prosegue fino all'esaurimento della suite o all'interruzione manuale.
+Una volta terminata l'esecuzione, il programma lascia trascorrere una breve finestra temporale per consentire al \texttt{TelemetryCollector} di acquisire gli eventi generati, interrompendo successivamente il \texttt{PerformanceMonitor}. Gli eventi raccolti vengono filtrati confrontando l'identificativo del container che li ha generati e aggregati all'interno di un oggetto \texttt{TestResult}, assieme alle statistiche di prestazione. Il ciclo prosegue fino all'esaurimento della suite o all'interruzione manuale.
 
 Al termine della campagna, l'insieme dei risultati viene passato al modulo \texttt{Evaluator}. Per ciascuno strumento, l'evaluator considera rilevato un test quando è presente almeno un \texttt{SecurityEvent} corrispondente. Il confronto con il tipo dichiarato nel test consente di aggiornare la matrice di confusione e di calcolare Recall, Precision e latenza media di rilevazione. La latenza è ottenuta come differenza tra il timestamp del primo evento associato e l'istante di avvio del container.
 
@@ -568,7 +568,7 @@ Ogni scenario viene eseguito all'interno di un container usa-e-getta, creato pri
 
 Il container usa-e-getta semplifica inoltre la correlazione tra test eseguito ed eventi osservati. Al momento della creazione, Docker assegna al container un identificativo univoco; il \texttt{Runner} restituisce tale ID per essere integrato nel \texttt{TestResult}. Il \texttt{TelemetryCollector}, invece, preleva e normalizza l'ID del container dagli eventi generati da Falco e Tetragon. In questo modo ogni evento può essere associato al test corretto, anche se i due strumenti producono log in formati diversi e con campi differenti.
 
-Sono state considerate anche strategie alternative, come la generazione di uno UUID che sarebbe stato integrato all'interno del comando stesso in forma di variabile d'ambiente. Tale soluzione è stata tuttavia abbandonata poiché richiedeva una maggiore complessità nel recuperare l'UUID dai log e non garantiva la stessa robustezza. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria.
+Sono state considerate anche strategie alternative, come la generazione di un UUID che sarebbe stato integrato all'interno del comando stesso in forma di variabile d'ambiente. Tale soluzione è stata tuttavia abbandonata poiché richiedeva una maggiore complessità nel recuperare l'UUID dai log e non garantiva la stessa robustezza. Il container ID offre invece una chiave generata dal runtime, stabile per l'intera esecuzione e condivisa dai due flussi di telemetria.
 
 %----------------------------------------------------------------------------------------
 
@@ -584,17 +584,17 @@ La suite utilizzata contiene 22 test, di cui 18 classificati come malevoli e 4 c
 
 \subsection{Efficacia della detection}
 
-La Tabella~\ref{tab:results-detection} riassume la matrice di confusione e le metriche derivate. Falco rileva 2 dei 18 test malevoli, mentre Tetragon ne rileva 14. Ne risulta un Recall rispettivamente pari a 0,1111 e 0,7778. In termini relativi, Tetragon riconosce circa il 77,8\% degli scenari malevoli considerati, contro l'11,1\% di Falco.
+La Tabella~\ref{tab:results-detection} riassume la matrice di confusione e le metriche derivate. Falco rileva 2 su 18 test malevoli, mentre Tetragon ne rileva 14. Ne risulta un Recall rispettivamente pari a 0,1111 e 0,7778. In termini relativi, Tetragon riconosce circa il 77,8\% degli scenari malevoli considerati, contro l'11,1\% di Falco.
 
 \begin{table}[htbp]
     \centering
-    \caption{Risultati di detection sulla suite \texttt{all-no-stress}.}
+    \caption{Risultati di detection sulla suite senza stress.}
     \label{tab:results-detection}
     \small
     \renewcommand{\arraystretch}{1.2}
     \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}X r r r r r r}
         \hline
-        \textbf{Strumento} & \textbf{TP} & \textbf{FP} & \textbf{TN} & \textbf{FN} & \textbf{Recall} & \textbf{Precisione} \\
+        \textbf{Strumento} & \textbf{TP} & \textbf{FP} & \textbf{TN} & \textbf{FN} & \textbf{Recall} & \textbf{Precision} \\
         \hline
         Falco & 2 & 1 & 3 & 16 & 0,1111 & 0,6667 \\
         Tetragon & 14 & 4 & 0 & 4 & 0,7778 & 0,7778 \\
@@ -634,7 +634,7 @@ Questi valori non devono essere interpretati come una misura assoluta del costo 
 \section{Risultati della suite di stress}
 \label{sec:results-stress}
 
-La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'elevata frequenza di operazioni di esecuzione e apertura di file, e \texttt{STRESS-IO-RAM}, orientato a I/O e allocazioni di memoria. Entrambi i test durano alcune decine di secondi e non sono stati progettati per verificare Recall e Precision degli strumenti, ma bensì per sottoporre le loro pipeline di telemetria a condizioni di carico.
+La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'elevata frequenza di operazioni di esecuzione e apertura di file, e \texttt{STRESS-IO-RAM}, orientato a I/O e allocazioni di memoria. Entrambi i test durano alcune decine di secondi e non sono stati progettati per verificare Recall e Precision degli strumenti, bensì per sottoporre le loro pipeline di telemetria a condizioni di carico.
 
 \begin{figure}[htbp]
     \centering
@@ -650,7 +650,7 @@ La campagna di stress comprende due scenari: \texttt{STRESS-EXEC}, basato su un'
     \label{fig:stress-ram-results}
 \end{figure}
 
-Nel test \texttt{STRESS-EXEC}, Falco raggiunge un utilizzo medio della CPU pari al 192,49\%\footnote{Il valore superiore al 100\% è compatibile con una misura aggregata su più CPU.}, mentre Tetragon si mantiene al 7,06\%. Nel test \texttt{STRESS-IO-RAM}, invece, l'utilizzo medio risulta analogo agli scenari precedenti. Il comportamento di Falco dipende quindi fortemente dalla natura del carico: la pressione su exec e open produce un costo di processamento molto più alto rispetto al carico combinato di I/O e RAM.
+Nel test \texttt{STRESS-EXEC}, Falco raggiunge un utilizzo medio della CPU pari al 192,49\%, mentre Tetragon si mantiene al 7,06\%.\footnote{Il valore superiore al 100\% è compatibile con una misura aggregata su più CPU.} Nel test \texttt{STRESS-IO-RAM}, invece, l'utilizzo medio risulta analogo agli scenari precedenti. Il comportamento di Falco dipende quindi fortemente dalla natura del carico: la pressione su \texttt{exec} e \texttt{open} produce un costo di processamento molto più alto rispetto al carico combinato di I/O e RAM.
 
 Per quanto riguarda il test sulla memoria, il comportamento è più stabile. Falco raggiunge 123,03 MB in \texttt{STRESS-EXEC} e 122,91 MB in \texttt{STRESS-IO-RAM}; Tetragon raggiunge rispettivamente 146,15 MB e 146,16 MB. Il risultato conferma il compromesso già osservato nella suite senza stress: Tetragon utilizza più memoria, mentre Falco è più sensibile in termini di CPU quando il numero di eventi aumenta rapidamente. Le Figure~\ref{fig:stress-cpu-results} e~\ref{fig:stress-ram-results} mostrano questo comportamento nei due scenari.
 
@@ -665,7 +665,7 @@ Il risultato più significativo riguarda il contatore degli eventi persi. Infatt
     \label{fig:drops-results}
 \end{figure}
 
-Il completo sovraccarico di Falco in \texttt{STRESS-EXEC} non è inatteso alla luce delle differenze architetturali tra i due strumenti. Falco deve acquisire un flusso molto intenso di eventi, trasferirlo verso il componente \userspace, applicare la logica di valutazione delle regole e serializzare gli alert. Quando la velocità di produzione supera la capacità di consumo della pipeline, il buffer di acquisizione può saturarsi e gli eventi successivi venire persi. Il dato osservato è coerente con il picco di CPU misurato nello stesso test.
+Il completo sovraccarico di Falco in \texttt{STRESS-EXEC} non è inatteso alla luce delle differenze architetturali tra i due strumenti. Falco deve acquisire un flusso molto intenso di eventi, trasferirlo verso il componente \userspace, applicare la logica di valutazione delle regole e serializzare gli alert. Quando la velocità di produzione supera la capacità di consumo della pipeline, il buffer di acquisizione può saturarsi provocando la perdita degli eventi successivi. Il dato osservato è coerente con il picco di CPU misurato nello stesso test.
 
 Tetragon, invece, filtra gli eventi vicino alla sorgente mediante programmi eBPF e produce l'output in funzione delle policy attive. Nel setup adottato, l'allowlist limita inoltre gli eventi esportati ai tipi rilevanti per il confronto. Il minor volume trasferito a \userspace riduce la pressione sulla fase di serializzazione e rende plausibile l'assenza di drop osservati. Questo risultato non dimostra che Tetragon sia immune alla perdita di eventi in ogni condizione: indica che, nel carico e nella configurazione sperimentati, la sua pipeline ha mantenuto la capacità di assorbire gli eventi prodotti.
 
@@ -676,7 +676,7 @@ Per mitigare il problema, Falco può essere configurato per generare un avviso q
 
 I risultati mostrano due profili operativi distinti. Falco presenta un consumo di memoria inferiore e mantiene una precisione non trascurabile sui casi della suite, ma il Recall è ridotto e il costo CPU cresce drasticamente sotto un flusso intenso di eventi. Tetragon raggiunge una copertura più elevata e una latenza media leggermente inferiore, utilizzando però più memoria e generando più falsi positivi nel campione analizzato. La sua maggiore robustezza nel test \texttt{STRESS-EXEC} è il risultato più netto della sperimentazione, ma deve essere letto insieme alla configurazione delle policy e dell'export utilizzata.
 
-Non emerge quindi un vincitore assoluto; Falco rimane adatto a scenari in cui la generazione di alert, l'integrazione con output \userspace e il contenimento della memoria sono prioritari, purché siano monitorate la capacità di elaborazione e la possibile perdita di eventi. Tetragon risulta più efficace quando la priorità è filtrare gli eventi vicino al kernel e mantenere la telemetria sotto carico, accettando un maggiore consumo di memoria e la necessità di un tuning più accurato delle policy per ridurre i falsi positivi.
+Non emerge quindi un vincitore assoluto: Falco rimane adatto in contesti in cui la generazione di alert, l'integrazione con output \userspace e il contenimento della memoria sono prioritari, purché siano monitorate la capacità di elaborazione e la possibile perdita di eventi. Tetragon risulta più efficace quando la priorità è filtrare gli eventi vicino al kernel e mantenere la telemetria sotto carico, accettando un maggiore consumo di memoria e la necessità di un tuning più accurato delle policy per ridurre i falsi positivi.
 
 Un ulteriore elemento di cautela riguarda la configurazione delle policy. Falco è stato eseguito con il set di regole predefinito, mentre per Tetragon sono state definite TracingPolicy mirate agli scenari di test, poiché esso non dispone di un insieme equivalente di policy di detection già attivo nel setup utilizzato. Non è stata quindi realizzata una replica completa dell'intero set di regole Falco. Il confronto misura pertanto il comportamento di due configurazioni sperimentali concrete e non l'efficacia massima teorica dei due strumenti.
 
@@ -691,7 +691,7 @@ Il presente lavoro ha analizzato il ruolo della sicurezza a livello kernel negli
 
 L'analisi teorica ha evidenziato una differenza architetturale fondamentale. Falco adotta un modello orientato alla detection e all'alerting: acquisisce gli eventi, li arricchisce con il contesto disponibile e valuta le regole in \userspace. Tetragon, invece, utilizza un approccio kernel-first, basato su programmi eBPF, hook del kernel e policy configurabili, con la possibilità di filtrare gli eventi più vicino alla loro sorgente e di supportare meccanismi di enforcement. Questa distinzione si riflette anche nella configurazione: le regole Falco risultano generalmente più immediate da definire e integrare, mentre le TracingPolicy di Tetragon richiedono una conoscenza più approfondita degli hook, degli argomenti delle syscall e del contesto del kernel.
 
-Il confronto sperimentale ha confermato che non esiste uno strumento migliore in assoluto, ma che la scelta dipende dalle priorità operative. Nella suite senza stress, Tetragon ha rilevato 14 dei 18 scenari malevoli, raggiungendo un Recall pari a 0,7778, mentre Falco ne ha rilevati 2, con un Recall pari a 0,1111. Tetragon ha quindi offerto una copertura maggiore nel perimetro considerato, a fronte di un numero più elevato di falsi positivi. Falco ha invece mantenuto un consumo massimo di memoria inferiore, mentre Tetragon ha mostrato un utilizzo medio della CPU più contenuto. La latenza media è risultata leggermente più bassa per Tetragon, ma la differenza osservata non costituisce da sola un elemento decisivo.
+Il confronto sperimentale ha confermato che non esiste uno strumento migliore in assoluto, ma che la scelta dipende dalle priorità operative. Nella suite senza stress, Tetragon ha rilevato 14 su 18 scenari malevoli, raggiungendo un Recall pari a 0,7778, mentre Falco ne ha rilevati 2, arrivando solo a 0,1111. Tetragon ha quindi offerto una copertura maggiore nel perimetro considerato, a fronte di un numero più elevato di falsi positivi. Falco ha invece mantenuto un consumo massimo di memoria inferiore, mentre Tetragon ha mostrato un utilizzo medio della CPU più contenuto. La latenza media è risultata leggermente più bassa per Tetragon, ma la differenza osservata non costituisce da sola un elemento decisivo.
 
 La differenza più significativa è emersa durante il test di stress basato su un'elevata frequenza di operazioni di esecuzione e apertura di file. In tale scenario Falco ha raggiunto un utilizzo della CPU molto elevato e ha registrato una consistente perdita di eventi, mentre Tetragon non ha registrato eventi persi. Questo risultato è coerente con la diversa organizzazione delle pipeline: Falco deve trasferire gli eventi verso lo \userspace e valutarli attraverso il motore di regole, mentre Tetragon può ridurre il volume esportato mediante filtraggio vicino alla sorgente. Il risultato non implica tuttavia l'assenza di limiti per Tetragon, poiché dipende dalle policy, dall'allowlist di esportazione, dal carico e dall'ambiente sperimentale.
 
@@ -699,7 +699,7 @@ Alla domanda di ricerca si può quindi rispondere affermando che Falco e Tetrago
 
 La portata dei risultati deve essere interpretata alla luce dei limiti della ricerca. Gli esperimenti sono stati eseguiti in una singola macchina virtuale, con specifiche versioni del kernel, delle immagini e dei componenti utilizzati. Inoltre, Falco è stato valutato con il set di regole predefinito, mentre per Tetragon sono state definite policy mirate agli scenari della suite; non è stata quindi realizzata una copertura perfettamente equivalente. Tetragon è stato utilizzato in modalità osservativa, senza valutare sperimentalmente l'effetto delle azioni di enforcement. Di conseguenza, le metriche di Recall, Precision e latenza descrivono il comportamento delle configurazioni adottate e non rappresentano una misura assoluta delle capacità teoriche dei due progetti.
 
-Gli sviluppi futuri dovrebbero partire da questi limiti, realizzando un tuning indipendente e sistematico delle regole Falco e delle policy Tetragon, definendo una copertura comune delle tecniche e ripetendo gli scenari con diversi livelli di selettività. Sarebbe inoltre utile estendere la valutazione a più ambienti e considerare direttamente le modalità di enforcement di Tetragon, mantenendo invariati i criteri di confronto. In questo modo sarebbe possibile verificare se il vantaggio osservato nella copertura e nella gestione dei carichi elevati rimanga stabile anche al variare del contesto e se il costo aggiuntivo di configurazione produca benefici concreti nei sistemi di produzione.
+Gli sviluppi futuri dovrebbero partire da questi limiti, realizzando un tuning indipendente e sistematico delle regole Falco e delle policy Tetragon, definendo una copertura comune delle tecniche e ripetendo gli scenari con diversi livelli di selettività. Sarebbe inoltre utile estendere la valutazione ad ambienti eterogenei e considerare direttamente le modalità di enforcement di Tetragon, mantenendo invariati i criteri di confronto. In questo modo sarebbe possibile verificare se il vantaggio osservato nella copertura e nella gestione dei carichi elevati rimanga stabile anche al variare del contesto e se il costo aggiuntivo di configurazione produca benefici concreti nei sistemi di produzione.
 
 
 \appendix
@@ -708,9 +708,9 @@ Gli sviluppi futuri dovrebbero partire da questi limiti, realizzando un tuning i
 
 Questa appendice documenta l'impiego di strumenti di intelligenza artificiale generativa durante l'implementazione della piattaforma di testing e la redazione della tesi. Gli strumenti sono stati utilizzati come supporto alla scrittura del codice, alla revisione linguistica e alla riorganizzazione di alcuni passaggi testuali. La responsabilità per la selezione delle fonti, la correttezza delle descrizioni tecniche, l'esecuzione degli esperimenti e l'interpretazione dei risultati rimane dell'autore.
 
-In particolare è stato utilizzato \textit{GitHub Copilot}, principalmente nel periodo compreso tra il 18 agosto 2026 e il 3 settembre 2026, per suggerire frammenti di codice Python e YAML, completare funzioni e generare boilerplate. L'uso di Copilot è stato limitato a suggerimenti contestuali, con revisione e modifica manuale da parte dell'autore prima dell'integrazione nel progetto.
+In particolare, è stato utilizzato \textit{GitHub Copilot}, principalmente nel periodo compreso tra il 18 agosto 2026 e il 3 settembre 2026, per suggerire frammenti di codice Python e YAML, completare funzioni e generare boilerplate. L'uso di Copilot è stato limitato a suggerimenti contestuali, con revisione e modifica manuale da parte dell'autore prima dell'integrazione nel progetto.
 
-È stato inoltre impiegato \textit{Gemini 3.1 Pro}, nel periodo compreso tra il 4 agosto 2026 e il 12 settembre 2026, per la revisione linguistica e la riorganizzazione di alcune sezioni del testo, con particolare attenzione alla chiarezza espositiva e alla coerenza terminologica. Tutti i contenuti generati da Gemini sono stati verificati e adattati dall'autore per garantire l'accuratezza tecnica e la coerenza con il contesto della tesi.
+È stato inoltre impiegato \textit{Gemini 3.1 Pro}, nel periodo compreso tra il 4 agosto 2026 e il 15 settembre 2026, per la revisione linguistica e la riorganizzazione di alcune sezioni del testo, con particolare attenzione alla chiarezza espositiva e alla coerenza terminologica. Tutti i contenuti generati da Gemini sono stati verificati e adattati dall'autore per garantire l'accuratezza tecnica e la coerenza con il contesto della tesi.
 
 %----------------------------------------------------------------------------------------
 % BIBLIOGRAPHY
