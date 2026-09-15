@@ -31,7 +31,7 @@
     "name": "Get geolocation info through IP-Lookup services",
     "category": "Discovery",
     "test_type": "malicious",
-    "command": "goart -t T1614 -i 1",
+    "command": "goart --technique T1614 --index 1",
     "shell_wrap": false,
     "container_image": "custom/art:alpine"
   },
